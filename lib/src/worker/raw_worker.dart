@@ -2,15 +2,15 @@ import 'dart:async';
 import 'dart:isolate';
 import 'dart:typed_data';
 
-import '../develop/linear_image.dart';
-import '../develop/tone_processor.dart';
-import '../model/raw_backend_info.dart';
-import '../model/raw_develop_settings.dart';
-import '../model/raw_exception.dart';
-import '../model/raw_image.dart';
-import '../model/raw_metadata.dart';
-import '../model/raw_types.dart';
-import '../native/native_backend.dart';
+import 'package:rawkit/src/develop/linear_image.dart';
+import 'package:rawkit/src/develop/tone_processor.dart';
+import 'package:rawkit/src/model/raw_backend_info.dart';
+import 'package:rawkit/src/model/raw_develop_settings.dart';
+import 'package:rawkit/src/model/raw_exception.dart';
+import 'package:rawkit/src/model/raw_image.dart';
+import 'package:rawkit/src/model/raw_metadata.dart';
+import 'package:rawkit/src/model/raw_types.dart';
+import 'package:rawkit/src/native/native_backend.dart';
 
 /// Result returned after a worker has opened and parsed a RAW source.
 final class RawWorkerStartResult {
@@ -56,8 +56,7 @@ final class RawWorkerClient {
   Future<void>? _disposeFuture;
 
   /// Starts a worker backed by a filesystem path.
-  static Future<RawWorkerStartResult> openFile(String path) =>
-      _start({'kind': 'file', 'path': path});
+  static Future<RawWorkerStartResult> openFile(String path) => _start({'kind': 'file', 'path': path});
 
   /// Starts a worker backed by bytes transferred into its isolate.
   static Future<RawWorkerStartResult> openMemory(Uint8List bytes) => _start({
@@ -71,8 +70,7 @@ final class RawWorkerClient {
     final ReceivePort events = ReceivePort();
     final ReceivePort errors = ReceivePort();
     final ReceivePort exits = ReceivePort();
-    final Completer<Map<Object?, Object?>> ready =
-        Completer<Map<Object?, Object?>>();
+    final Completer<Map<Object?, Object?>> ready = Completer<Map<Object?, Object?>>();
     late RawWorkerClient client;
     late final Isolate isolate;
     try {
@@ -133,9 +131,7 @@ final class RawWorkerClient {
       }
       client._failPending(
         RawBackendException(
-          message: client._closing
-              ? 'The RAW worker exited while shutting down.'
-              : 'The RAW worker exited unexpectedly.',
+          message: client._closing ? 'The RAW worker exited while shutting down.' : 'The RAW worker exited unexpectedly.',
         ),
       );
       client._closed = true;
@@ -194,8 +190,7 @@ final class RawWorkerClient {
       );
     }
     final ByteBuffer buffer = transferred.materialize();
-    final RawBitDepth returnedBitDepth =
-        RawBitDepth.values[_integer(response['bitDepth'], 'bitDepth')];
+    final RawBitDepth returnedBitDepth = RawBitDepth.values[_integer(response['bitDepth'], 'bitDepth')];
     final int width = _integer(response['width'], 'width');
     final int height = _integer(response['height'], 'height');
     final int channels = _integer(response['channels'], 'channels');
@@ -209,8 +204,7 @@ final class RawWorkerClient {
       height: height,
       channels: channels,
       bitDepth: returnedBitDepth,
-      colorSpace:
-          RawColorSpace.values[_integer(response['colorSpace'], 'colorSpace')],
+      colorSpace: RawColorSpace.values[_integer(response['colorSpace'], 'colorSpace')],
       pixels: pixels,
     );
   }
@@ -251,8 +245,7 @@ final class RawWorkerClient {
       throw const RawStateException(message: 'The RAW document is closed.');
     }
     final int requestId = _nextRequestId++;
-    final Completer<Map<Object?, Object?>> completer =
-        Completer<Map<Object?, Object?>>();
+    final Completer<Map<Object?, Object?>> completer = Completer<Map<Object?, Object?>>();
     _pending[requestId] = completer;
     _commandPort.send({'id': requestId, 'operation': operation, ...arguments});
     return completer.future;
@@ -275,8 +268,7 @@ final class RawWorkerClient {
   }
 
   void _failPending(Object error) {
-    final List<Completer<Map<Object?, Object?>>> pending = _pending.values
-        .toList();
+    final List<Completer<Map<Object?, Object?>>> pending = _pending.values.toList();
     _pending.clear();
     for (final Completer<Map<Object?, Object?>> completer in pending) {
       if (!completer.isCompleted) {
@@ -359,8 +351,7 @@ Future<void> rawWorkerMain(Map<Object?, Object?> startup) async {
             final RawDevelopSettings settings = deserializeSettings(
               rawCommand['settings'],
             );
-            final RawColorSpace colorSpace = RawColorSpace
-                .values[_integer(rawCommand['colorSpace'], 'colorSpace')];
+            final RawColorSpace colorSpace = RawColorSpace.values[_integer(rawCommand['colorSpace'], 'colorSpace')];
             final bool preview = _boolean(rawCommand['preview'], 'preview');
             final _DecodeCacheKey requestedKey = _DecodeCacheKey.fromSettings(
               settings,
@@ -391,8 +382,7 @@ Future<void> rawWorkerMain(Map<Object?, Object?> startup) async {
             final RawImage image = ToneProcessor.render(
               source: linearImage,
               settings: settings,
-              bitDepth: RawBitDepth
-                  .values[_integer(rawCommand['bitDepth'], 'bitDepth')],
+              bitDepth: RawBitDepth.values[_integer(rawCommand['bitDepth'], 'bitDepth')],
               maximumWidth: _integer(
                 rawCommand['maximumWidth'],
                 'maximumWidth',
@@ -452,17 +442,15 @@ Future<void> rawWorkerMain(Map<Object?, Object?> startup) async {
   }
 }
 
-NativeRawDocument _openNativeSource(Map<Object?, Object?> source) {
-  return switch (source['kind']) {
-    'file' => NativeRawDocument.openFile(_string(source['path'], 'path')),
-    'memory' => NativeRawDocument.openMemory(
-      _transferredBytes(source['bytes'], 'bytes'),
-    ),
-    _ => throw const RawBackendException(
-      message: 'The RAW worker received an unsupported source kind.',
-    ),
-  };
-}
+NativeRawDocument _openNativeSource(Map<Object?, Object?> source) => switch (source['kind']) {
+  'file' => NativeRawDocument.openFile(_string(source['path'], 'path')),
+  'memory' => NativeRawDocument.openMemory(
+    _transferredBytes(source['bytes'], 'bytes'),
+  ),
+  _ => throw const RawBackendException(
+    message: 'The RAW worker received an unsupported source kind.',
+  ),
+};
 
 Uint8List _transferredBytes(Object? value, String name) {
   if (value is! TransferableTypedData) {
@@ -487,9 +475,7 @@ final class _DecodeCacheKey {
     RawColorSpace colorSpace,
   ) => _DecodeCacheKey(
     whiteBalance: settings.whiteBalance,
-    temperature: settings.whiteBalance == RawWhiteBalance.custom
-        ? settings.temperature
-        : 0,
+    temperature: settings.whiteBalance == RawWhiteBalance.custom ? settings.temperature : 0,
     tint: settings.whiteBalance == RawWhiteBalance.custom ? settings.tint : 0,
     demosaicQuality: settings.demosaicQuality,
     highlightRecovery: settings.highlightRecovery,
@@ -545,8 +531,7 @@ Map<Object?, Object?> serializeSettings(RawDevelopSettings settings) => {
 RawDevelopSettings deserializeSettings(Object? raw) {
   final Map<Object?, Object?> values = _map(raw, 'settings');
   return RawDevelopSettings(
-    whiteBalance: RawWhiteBalance
-        .values[_integer(values['whiteBalance'], 'whiteBalance')],
+    whiteBalance: RawWhiteBalance.values[_integer(values['whiteBalance'], 'whiteBalance')],
     temperature: _double(values['temperature'], 'temperature'),
     tint: _double(values['tint'], 'tint'),
     exposure: _double(values['exposure'], 'exposure'),
@@ -557,10 +542,8 @@ RawDevelopSettings deserializeSettings(Object? raw) {
     blacks: _double(values['blacks'], 'blacks'),
     saturation: _double(values['saturation'], 'saturation'),
     vibrance: _double(values['vibrance'], 'vibrance'),
-    demosaicQuality: RawDemosaicQuality
-        .values[_integer(values['demosaicQuality'], 'demosaicQuality')],
-    highlightRecovery: RawHighlightRecovery
-        .values[_integer(values['highlightRecovery'], 'highlightRecovery')],
+    demosaicQuality: RawDemosaicQuality.values[_integer(values['demosaicQuality'], 'demosaicQuality')],
+    highlightRecovery: RawHighlightRecovery.values[_integer(values['highlightRecovery'], 'highlightRecovery')],
   );
 }
 
@@ -605,11 +588,8 @@ RawMetadata deserializeMetadata(Object? raw) {
     shutterSpeed: _nullableDouble(values['shutterSpeed'], 'shutterSpeed'),
     aperture: _nullableDouble(values['aperture'], 'aperture'),
     focalLength: _nullableDouble(values['focalLength'], 'focalLength'),
-    timestamp: timestamp == null
-        ? null
-        : DateTime.fromMillisecondsSinceEpoch(timestamp, isUtc: true),
-    orientation:
-        RawOrientation.values[_integer(values['orientation'], 'orientation')],
+    timestamp: timestamp == null ? null : DateTime.fromMillisecondsSinceEpoch(timestamp, isUtc: true),
+    orientation: RawOrientation.values[_integer(values['orientation'], 'orientation')],
     width: _integer(values['width'], 'width'),
     height: _integer(values['height'], 'height'),
     rawWidth: _integer(values['rawWidth'], 'rawWidth'),
@@ -695,8 +675,7 @@ String _string(Object? value, String name) {
   return value;
 }
 
-String? _nullableString(Object? value, String name) =>
-    value == null ? null : _string(value, name);
+String? _nullableString(Object? value, String name) => value == null ? null : _string(value, name);
 
 int _integer(Object? value, String name) {
   if (value is! int) {
@@ -705,8 +684,7 @@ int _integer(Object? value, String name) {
   return value;
 }
 
-int? _nullableInteger(Object? value, String name) =>
-    value == null ? null : _integer(value, name);
+int? _nullableInteger(Object? value, String name) => value == null ? null : _integer(value, name);
 
 double _double(Object? value, String name) {
   if (value is! num) {
@@ -715,8 +693,7 @@ double _double(Object? value, String name) {
   return value.toDouble();
 }
 
-double? _nullableDouble(Object? value, String name) =>
-    value == null ? null : _double(value, name);
+double? _nullableDouble(Object? value, String name) => value == null ? null : _double(value, name);
 
 bool _boolean(Object? value, String name) {
   if (value is! bool) {

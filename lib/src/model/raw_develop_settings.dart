@@ -1,4 +1,4 @@
-import 'raw_types.dart';
+import 'package:rawkit/src/model/raw_types.dart';
 
 /// Immutable controls for decoding and developing a RAW image.
 final class RawDevelopSettings {
@@ -22,16 +22,16 @@ final class RawDevelopSettings {
     this.vibrance = 0,
     this.demosaicQuality = RawDemosaicQuality.balanced,
     this.highlightRecovery = RawHighlightRecovery.blend,
-  }) : assert(temperature >= 2000 && temperature <= 50000),
-       assert(tint >= -150 && tint <= 150),
-       assert(exposure >= -10 && exposure <= 10),
-       assert(contrast >= -100 && contrast <= 100),
-       assert(highlights >= -100 && highlights <= 100),
-       assert(shadows >= -100 && shadows <= 100),
-       assert(whites >= -100 && whites <= 100),
-       assert(blacks >= -100 && blacks <= 100),
-       assert(saturation >= -100 && saturation <= 100),
-       assert(vibrance >= -100 && vibrance <= 100);
+  }) : assert(temperature >= 2000 && temperature <= 50000, 'temperature must be between 2000 and 50000'),
+       assert(tint >= -150 && tint <= 150, 'tint must be between -150 and 150'),
+       assert(exposure >= -10 && exposure <= 10, 'exposure must be between -10 and 10'),
+       assert(contrast >= -100 && contrast <= 100, 'contrast must be between -100 and 100'),
+       assert(highlights >= -100 && highlights <= 100, 'highlights must be between -100 and 100'),
+       assert(shadows >= -100 && shadows <= 100, 'shadows must be between -100 and 100'),
+       assert(whites >= -100 && whites <= 100, 'whites must be between -100 and 100'),
+       assert(blacks >= -100 && blacks <= 100, 'blacks must be between -100 and 100'),
+       assert(saturation >= -100 && saturation <= 100, 'saturation must be between -100 and 100'),
+       assert(vibrance >= -100 && vibrance <= 100, 'vibrance must be between -100 and 100');
 
   /// Neutral defaults that preserve the camera exposure and tonal response.
   static const RawDevelopSettings defaults = RawDevelopSettings();

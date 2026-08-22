@@ -1,4 +1,4 @@
-import 'raw_types.dart';
+import 'package:rawkit/src/model/raw_types.dart';
 
 /// Camera and capture metadata parsed from a RAW document.
 final class RawMetadata {

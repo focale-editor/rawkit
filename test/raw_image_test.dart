@@ -50,7 +50,7 @@ void main() {
         pixels: Uint8List.fromList([42]),
       );
 
-      expect(() => image.toRgba8(), throwsStateError);
+      expect(image.toRgba8, throwsStateError);
       expect(
         () => RawImage.fromPixels(
           width: 1,

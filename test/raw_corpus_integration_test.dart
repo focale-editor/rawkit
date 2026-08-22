@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:rawkit/rawkit.dart';
 import 'package:test/test.dart';
@@ -7,12 +8,8 @@ void main() {
   const String compileTimeCorpusPath = String.fromEnvironment(
     'RAWKIT_TEST_CORPUS',
   );
-  final String? corpusPath =
-      Platform.environment['RAWKIT_TEST_CORPUS'] ??
-      (compileTimeCorpusPath.isEmpty ? null : compileTimeCorpusPath);
-  final List<File> rawFiles = corpusPath == null
-      ? const []
-      : _findRawFiles(Directory(corpusPath));
+  final String? corpusPath = Platform.environment['RAWKIT_TEST_CORPUS'] ?? (compileTimeCorpusPath.isEmpty ? null : compileTimeCorpusPath);
+  final List<File> rawFiles = corpusPath == null ? const [] : _findRawFiles(Directory(corpusPath));
 
   test(
     'open, metadata, preview, render, close lifecycle',
@@ -24,8 +21,7 @@ void main() {
         expect(document.metadata.width, greaterThan(0));
         expect(document.metadata.height, greaterThan(0));
 
-        final RawDevelopSettings settings = RawDevelopSettings.defaults
-            .copyWith(exposure: 0.25, highlights: -20, shadows: 15);
+        final RawDevelopSettings settings = RawDevelopSettings.defaults.copyWith(exposure: 0.25, highlights: -20, shadows: 15);
         final RawImage preview = await document.renderPreview(
           settings,
           maxWidth: 640,
@@ -51,9 +47,7 @@ void main() {
         throwsA(isA<RawStateException>()),
       );
     },
-    skip: rawFiles.isEmpty
-        ? 'Set RAWKIT_TEST_CORPUS to a directory containing licensed RAW files.'
-        : false,
+    skip: rawFiles.isEmpty ? 'Set RAWKIT_TEST_CORPUS to a directory containing licensed RAW files.' : false,
   );
 
   test(
@@ -80,15 +74,13 @@ void main() {
         await Future.wait(documents.map((document) => document.close()));
       }
     },
-    skip: rawFiles.isEmpty
-        ? 'Set RAWKIT_TEST_CORPUS to a directory containing licensed RAW files.'
-        : false,
+    skip: rawFiles.isEmpty ? 'Set RAWKIT_TEST_CORPUS to a directory containing licensed RAW files.' : false,
   );
 
   test(
     'memory input is copied and supports custom white balance',
     () async {
-      final bytes = await rawFiles.first.readAsBytes();
+      final Uint8List bytes = await rawFiles.first.readAsBytes();
       final RawDocument document = await RawDocument.openMemory(bytes);
 
       // A later decode reopens the worker-owned copy, not this caller buffer.
@@ -108,9 +100,7 @@ void main() {
         await document.close();
       }
     },
-    skip: rawFiles.isEmpty
-        ? 'Set RAWKIT_TEST_CORPUS to a directory containing licensed RAW files.'
-        : false,
+    skip: rawFiles.isEmpty ? 'Set RAWKIT_TEST_CORPUS to a directory containing licensed RAW files.' : false,
   );
 }
 
@@ -129,16 +119,10 @@ List<File> _findRawFiles(Directory directory) {
     'raf',
     'rw2',
   };
-  final List<File> files =
-      directory
-          .listSync(recursive: true, followLinks: false)
-          .whereType<File>()
-          .where((file) {
-            final String name = file.path.toLowerCase();
-            final int dot = name.lastIndexOf('.');
-            return dot >= 0 && extensions.contains(name.substring(dot + 1));
-          })
-          .toList()
-        ..sort((first, second) => first.path.compareTo(second.path));
+  final List<File> files = directory.listSync(recursive: true, followLinks: false).whereType<File>().where((file) {
+    final String name = file.path.toLowerCase();
+    final int dot = name.lastIndexOf('.');
+    return dot >= 0 && extensions.contains(name.substring(dot + 1));
+  }).toList()..sort((first, second) => first.path.compareTo(second.path));
   return files;
 }

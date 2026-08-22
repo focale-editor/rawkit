@@ -24,6 +24,5 @@ final class RawBackendInfo {
   bool get isExpectedVersion => runtimeVersion == bundledVersion;
 
   @override
-  String toString() =>
-      '$engine $runtimeVersion (RawKit native API $apiVersion)';
+  String toString() => '$engine $runtimeVersion (RawKit native API $apiVersion)';
 }

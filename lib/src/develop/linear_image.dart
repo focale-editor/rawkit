@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import '../model/raw_types.dart';
+import 'package:rawkit/src/model/raw_types.dart';
 
 /// Dart-owned linear RGB buffer produced by the native decoder.
 final class LinearImage {

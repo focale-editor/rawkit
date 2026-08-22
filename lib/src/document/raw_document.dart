@@ -2,14 +2,14 @@ import 'dart:async';
 import 'dart:isolate';
 import 'dart:typed_data';
 
-import '../develop/settings_validation.dart';
-import '../model/raw_backend_info.dart';
-import '../model/raw_develop_settings.dart';
-import '../model/raw_exception.dart';
-import '../model/raw_image.dart';
-import '../model/raw_metadata.dart';
-import '../model/raw_types.dart';
-import '../worker/raw_worker.dart';
+import 'package:rawkit/src/develop/settings_validation.dart';
+import 'package:rawkit/src/model/raw_backend_info.dart';
+import 'package:rawkit/src/model/raw_develop_settings.dart';
+import 'package:rawkit/src/model/raw_exception.dart';
+import 'package:rawkit/src/model/raw_image.dart';
+import 'package:rawkit/src/model/raw_metadata.dart';
+import 'package:rawkit/src/model/raw_types.dart';
+import 'package:rawkit/src/worker/raw_worker.dart';
 
 /// An open RAW source with isolated decoding and reusable linear-image caches.
 ///

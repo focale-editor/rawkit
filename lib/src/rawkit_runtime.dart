@@ -1,5 +1,5 @@
-import 'model/raw_backend_info.dart';
-import 'native/native_backend.dart';
+import 'package:rawkit/src/model/raw_backend_info.dart';
+import 'package:rawkit/src/native/native_backend.dart';
 
 /// Package-level diagnostics that do not require an open RAW document.
 abstract final class RawKit {

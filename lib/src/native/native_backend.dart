@@ -2,14 +2,13 @@ import 'dart:ffi' as ffi;
 import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
-
-import '../develop/linear_image.dart';
-import '../model/raw_backend_info.dart';
-import '../model/raw_develop_settings.dart';
-import '../model/raw_exception.dart';
-import '../model/raw_metadata.dart';
-import '../model/raw_types.dart';
-import 'bindings.dart';
+import 'package:rawkit/src/develop/linear_image.dart';
+import 'package:rawkit/src/model/raw_backend_info.dart';
+import 'package:rawkit/src/model/raw_develop_settings.dart';
+import 'package:rawkit/src/model/raw_exception.dart';
+import 'package:rawkit/src/model/raw_metadata.dart';
+import 'package:rawkit/src/model/raw_types.dart';
+import 'package:rawkit/src/native/bindings.dart';
 
 /// Owns one native decoder handle inside the worker isolate.
 final class NativeRawDocument {
@@ -21,7 +20,7 @@ final class NativeRawDocument {
   final RawMetadata metadata;
 
   /// Opens a filesystem-backed RAW document.
-  static NativeRawDocument openFile(String path) {
+  factory NativeRawDocument.openFile(String path) {
     if (path.isEmpty) {
       throw const RawIOException(message: 'The RAW file path is empty.');
     }
@@ -45,7 +44,7 @@ final class NativeRawDocument {
   }
 
   /// Opens a memory-backed RAW document after the native shim copies its bytes.
-  static NativeRawDocument openMemory(Uint8List bytes) {
+  factory NativeRawDocument.openMemory(Uint8List bytes) {
     if (bytes.isEmpty) {
       throw const RawIOException(message: 'The RAW memory buffer is empty.');
     }

@@ -1,11 +1,11 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
 
-import '../model/raw_develop_settings.dart';
-import '../model/raw_image.dart';
-import '../model/raw_types.dart';
-import 'linear_image.dart';
-import 'settings_validation.dart';
+import 'package:rawkit/src/develop/linear_image.dart';
+import 'package:rawkit/src/develop/settings_validation.dart';
+import 'package:rawkit/src/model/raw_develop_settings.dart';
+import 'package:rawkit/src/model/raw_image.dart';
+import 'package:rawkit/src/model/raw_types.dart';
 
 /// Applies resolution-independent tonal controls to cached linear RGB pixels.
 abstract final class ToneProcessor {
@@ -33,29 +33,22 @@ abstract final class ToneProcessor {
       RawBitDepth.uint8 => Uint8List(sampleCount),
       RawBitDepth.uint16 => Uint16List(sampleCount),
     };
-    final ({double red, double green, double blue}) luminance =
-        _luminanceCoefficients(source.colorSpace);
+    final ({double red, double green, double blue}) luminance = _luminanceCoefficients(source.colorSpace);
     final double exposureMultiplier = math.pow(2, settings.exposure).toDouble();
 
     int outputIndex = 0;
     for (int y = 0; y < dimensions.height; y++) {
-      final double sourceY = dimensions.height == 1
-          ? 0
-          : y * (source.height - 1) / (dimensions.height - 1);
+      final double sourceY = dimensions.height == 1 ? 0 : y * (source.height - 1) / (dimensions.height - 1);
       for (int x = 0; x < dimensions.width; x++) {
-        final double sourceX = dimensions.width == 1
-            ? 0
-            : x * (source.width - 1) / (dimensions.width - 1);
-        final ({double red, double green, double blue}) sampled =
-            _sampleBilinear(source, sourceX, sourceY);
-        final ({double red, double green, double blue}) developed =
-            _developPixel(
-              red: sampled.red * exposureMultiplier,
-              green: sampled.green * exposureMultiplier,
-              blue: sampled.blue * exposureMultiplier,
-              luminance: luminance,
-              settings: settings,
-            );
+        final double sourceX = dimensions.width == 1 ? 0 : x * (source.width - 1) / (dimensions.width - 1);
+        final ({double red, double green, double blue}) sampled = _sampleBilinear(source, sourceX, sourceY);
+        final ({double red, double green, double blue}) developed = _developPixel(
+          red: sampled.red * exposureMultiplier,
+          green: sampled.green * exposureMultiplier,
+          blue: sampled.blue * exposureMultiplier,
+          luminance: luminance,
+          settings: settings,
+        );
         final double encodedRed = _encode(developed.red, source.colorSpace);
         final double encodedGreen = _encode(developed.green, source.colorSpace);
         final double encodedBlue = _encode(developed.blue, source.colorSpace);
@@ -142,8 +135,10 @@ abstract final class ToneProcessor {
     required ({double red, double green, double blue}) luminance,
     required RawDevelopSettings settings,
   }) {
-    double currentLuminance =
-        red * luminance.red + green * luminance.green + blue * luminance.blue;
+    double currentRed = red;
+    double currentGreen = green;
+    double currentBlue = blue;
+    double currentLuminance = currentRed * luminance.red + currentGreen * luminance.green + currentBlue * luminance.blue;
     double targetLuminance = currentLuminance;
 
     targetLuminance = _adjustRegion(
@@ -174,36 +169,32 @@ abstract final class ToneProcessor {
 
     if (currentLuminance > 0.000001) {
       final double luminanceRatio = targetLuminance / currentLuminance;
-      red *= luminanceRatio;
-      green *= luminanceRatio;
-      blue *= luminanceRatio;
+      currentRed *= luminanceRatio;
+      currentGreen *= luminanceRatio;
+      currentBlue *= luminanceRatio;
     } else {
-      red = targetLuminance;
-      green = targetLuminance;
-      blue = targetLuminance;
+      currentRed = targetLuminance;
+      currentGreen = targetLuminance;
+      currentBlue = targetLuminance;
     }
 
-    currentLuminance =
-        red * luminance.red + green * luminance.green + blue * luminance.blue;
-    final double maximum = math.max(red, math.max(green, blue));
-    final double minimum = math.min(red, math.min(green, blue));
+    currentLuminance = currentRed * luminance.red + currentGreen * luminance.green + currentBlue * luminance.blue;
+    final double maximum = math.max(currentRed, math.max(currentGreen, currentBlue));
+    final double minimum = math.min(currentRed, math.min(currentGreen, currentBlue));
     final double chroma = maximum - minimum;
     final double normalizedChroma = chroma / math.max(maximum, 0.000001);
     double saturationMultiplier = 1 + settings.saturation / 100;
     final double vibrance = settings.vibrance / 100;
-    saturationMultiplier += vibrance >= 0
-        ? vibrance * (1 - normalizedChroma) * 0.85
-        : vibrance * 0.85;
+    saturationMultiplier += vibrance >= 0 ? vibrance * (1 - normalizedChroma) * 0.85 : vibrance * 0.85;
     saturationMultiplier = math.max(0, saturationMultiplier);
 
-    red = currentLuminance + (red - currentLuminance) * saturationMultiplier;
-    green =
-        currentLuminance + (green - currentLuminance) * saturationMultiplier;
-    blue = currentLuminance + (blue - currentLuminance) * saturationMultiplier;
+    currentRed = currentLuminance + (currentRed - currentLuminance) * saturationMultiplier;
+    currentGreen = currentLuminance + (currentGreen - currentLuminance) * saturationMultiplier;
+    currentBlue = currentLuminance + (currentBlue - currentLuminance) * saturationMultiplier;
     return (
-      red: red.clamp(0, 1).toDouble(),
-      green: green.clamp(0, 1).toDouble(),
-      blue: blue.clamp(0, 1).toDouble(),
+      red: currentRed.clamp(0, 1).toDouble(),
+      green: currentGreen.clamp(0, 1).toDouble(),
+      blue: currentBlue.clamp(0, 1).toDouble(),
     );
   }
 
@@ -226,26 +217,19 @@ abstract final class ToneProcessor {
       return clampedLuminance;
     }
     const double pivot = 0.18;
-    final double exponent = contrast >= 0
-        ? 1 + contrast / 50
-        : 1 / (1 - contrast / 50);
+    final double exponent = contrast >= 0 ? 1 + contrast / 50 : 1 / (1 - contrast / 50);
     if (clampedLuminance <= pivot) {
       return pivot * math.pow(clampedLuminance / pivot, exponent);
     }
-    return 1 -
-        (1 - pivot) * math.pow((1 - clampedLuminance) / (1 - pivot), exponent);
+    return 1 - (1 - pivot) * math.pow((1 - clampedLuminance) / (1 - pivot), exponent);
   }
 
   static double _encode(double linear, RawColorSpace colorSpace) {
     final double value = linear.clamp(0, 1).toDouble();
     return switch (colorSpace) {
-      RawColorSpace.srgb =>
-        value <= 0.0031308
-            ? 12.92 * value
-            : 1.055 * math.pow(value, 1 / 2.4) - 0.055,
+      RawColorSpace.srgb => value <= 0.0031308 ? 12.92 * value : 1.055 * math.pow(value, 1 / 2.4) - 0.055,
       RawColorSpace.adobeRgb => math.pow(value, 1 / 2.19921875).toDouble(),
-      RawColorSpace.proPhotoRgb =>
-        value <= 1 / 512 ? value * 16 : math.pow(value, 1 / 1.8).toDouble(),
+      RawColorSpace.proPhotoRgb => value <= 1 / 512 ? value * 16 : math.pow(value, 1 / 1.8).toDouble(),
     };
   }
 
@@ -258,15 +242,11 @@ abstract final class ToneProcessor {
   };
 
   static double _smoothStep(double edge0, double edge1, double value) {
-    final double normalized = ((value - edge0) / (edge1 - edge0))
-        .clamp(0, 1)
-        .toDouble();
+    final double normalized = ((value - edge0) / (edge1 - edge0)).clamp(0, 1).toDouble();
     return normalized * normalized * (3 - 2 * normalized);
   }
 
-  static double _mix(double start, double end, double amount) =>
-      start + (end - start) * amount;
+  static double _mix(double start, double end, double amount) => start + (end - start) * amount;
 
-  static int _quantize(double value, int maximum) =>
-      (value.clamp(0, 1) * maximum).round();
+  static int _quantize(double value, int maximum) => (value.clamp(0, 1) * maximum).round();
 }

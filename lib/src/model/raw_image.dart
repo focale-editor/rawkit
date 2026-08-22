@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'raw_types.dart';
+import 'package:rawkit/src/model/raw_types.dart';
 
 /// An interleaved RGB image whose pixel buffer is owned by Dart.
 ///
@@ -85,8 +85,7 @@ final class RawImage {
   }
 
   /// Byte view over the same sample storage, without copying.
-  Uint8List get bytes =>
-      _pixels.buffer.asUint8List(_pixels.offsetInBytes, _pixels.lengthInBytes);
+  Uint8List get bytes => _pixels.buffer.asUint8List(_pixels.offsetInBytes, _pixels.lengthInBytes);
 
   /// Number of samples in the interleaved pixel buffer.
   int get sampleCount => width * height * channels;
@@ -95,8 +94,7 @@ final class RawImage {
   int get rowStride => width * channels * (bitDepth.bitsPerSample ~/ 8);
 
   /// Expected buffer size for the image description.
-  int get expectedByteLength =>
-      width * height * channels * (bitDepth.bitsPerSample ~/ 8);
+  int get expectedByteLength => width * height * channels * (bitDepth.bitsPerSample ~/ 8);
 
   /// Actual byte length of [pixels].
   int get byteLength => _pixels.lengthInBytes;
@@ -119,22 +117,14 @@ final class RawImage {
     final Uint8List result = Uint8List(width * height * 4);
     final TypedData source = _pixels;
     if (source is Uint8List) {
-      for (
-        int sourceOffset = 0, targetOffset = 0;
-        sourceOffset < source.length;
-        sourceOffset += 3, targetOffset += 4
-      ) {
+      for (int sourceOffset = 0, targetOffset = 0; sourceOffset < source.length; sourceOffset += 3, targetOffset += 4) {
         result[targetOffset] = source[sourceOffset];
         result[targetOffset + 1] = source[sourceOffset + 1];
         result[targetOffset + 2] = source[sourceOffset + 2];
         result[targetOffset + 3] = alpha;
       }
     } else if (source is Uint16List) {
-      for (
-        int sourceOffset = 0, targetOffset = 0;
-        sourceOffset < source.length;
-        sourceOffset += 3, targetOffset += 4
-      ) {
+      for (int sourceOffset = 0, targetOffset = 0; sourceOffset < source.length; sourceOffset += 3, targetOffset += 4) {
         result[targetOffset] = (source[sourceOffset] + 128) ~/ 257;
         result[targetOffset + 1] = (source[sourceOffset + 1] + 128) ~/ 257;
         result[targetOffset + 2] = (source[sourceOffset + 2] + 128) ~/ 257;

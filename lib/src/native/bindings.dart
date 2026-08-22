@@ -125,9 +125,7 @@ final class NativeRawImage extends ffi.Struct {
   external ffi.Pointer<ffi.Uint8> data;
 }
 
-@ffi.Native<
-  ffi.Pointer<ffi.Void> Function(ffi.Pointer<Utf8>, ffi.Pointer<ffi.Int32>)
->(symbol: 'rawkit_open_file')
+@ffi.Native<ffi.Pointer<ffi.Void> Function(ffi.Pointer<Utf8>, ffi.Pointer<ffi.Int32>)>(symbol: 'rawkit_open_file')
 /// Opens a filesystem-backed native document.
 external ffi.Pointer<ffi.Void> rawkitOpenFile(
   ffi.Pointer<Utf8> path,
@@ -148,9 +146,7 @@ external ffi.Pointer<ffi.Void> rawkitOpenMemory(
   ffi.Pointer<ffi.Int32> error,
 );
 
-@ffi.Native<
-  ffi.Int32 Function(ffi.Pointer<ffi.Void>, ffi.Pointer<NativeRawMetadata>)
->(symbol: 'rawkit_get_metadata')
+@ffi.Native<ffi.Int32 Function(ffi.Pointer<ffi.Void>, ffi.Pointer<NativeRawMetadata>)>(symbol: 'rawkit_get_metadata')
 /// Copies a metadata view for an open native document.
 external int rawkitGetMetadata(
   ffi.Pointer<ffi.Void> handle,

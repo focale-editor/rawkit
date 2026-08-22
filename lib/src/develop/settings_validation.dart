@@ -1,5 +1,5 @@
-import '../model/raw_develop_settings.dart';
-import '../model/raw_exception.dart';
+import 'package:rawkit/src/model/raw_develop_settings.dart';
+import 'package:rawkit/src/model/raw_exception.dart';
 
 /// Validates settings in release as well as debug builds.
 void validateDevelopSettings(RawDevelopSettings settings) {
@@ -18,8 +18,7 @@ void validateDevelopSettings(RawDevelopSettings settings) {
 void _validateRange(String name, double value, double minimum, double maximum) {
   if (!value.isFinite || value < minimum || value > maximum) {
     throw RawSettingsException(
-      message:
-          '$name must be finite and between $minimum and $maximum; got $value.',
+      message: '$name must be finite and between $minimum and $maximum; got $value.',
     );
   }
 }
