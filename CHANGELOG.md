@@ -1,11 +1,9 @@
 # 📰 RawKit changelog
 
-## Unreleased
+## v0.2.0
+Released on August 24, 2026.
 
-- Add zero-configuration Flutter Web support through a precompiled LibRaw
-  WebAssembly module running in a dedicated Web Worker.
-- Add `prepare_library desktop|web|all` for offline desktop builds and plain
-  Dart Web asset installation.
+* **BREAKING FEAT**: Added web support for RawKit ! ([#986172d](https://github.com/focale-editor/rawkit/commit/986172d))
 
 ## v0.1.0
 Released on August 23, 2026.
