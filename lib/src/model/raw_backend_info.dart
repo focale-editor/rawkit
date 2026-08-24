@@ -1,6 +1,6 @@
-/// Identifies the native decoding engine bundled with the package.
+/// Identifies the decoding engine bundled with the package.
 final class RawBackendInfo {
-  /// Creates native backend diagnostics.
+  /// Creates backend diagnostics.
   const RawBackendInfo({
     required this.engine,
     required this.runtimeVersion,
@@ -24,5 +24,5 @@ final class RawBackendInfo {
   bool get isExpectedVersion => runtimeVersion == bundledVersion;
 
   @override
-  String toString() => '$engine $runtimeVersion (RawKit native API $apiVersion)';
+  String toString() => '$engine $runtimeVersion (RawKit API $apiVersion)';
 }

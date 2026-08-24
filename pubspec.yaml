@@ -10,10 +10,11 @@ environment:
 platforms:
   linux:
   macos:
+  web:
   windows:
 
 executables:
-  download_library: download_library
+  prepare_library: prepare_library
 
 dependencies:
   code_assets: ^2.0.0
@@ -21,6 +22,7 @@ dependencies:
   ffi: ^2.2.0
   hooks: ^2.2.0
   native_toolchain_c: ^0.19.4
+  web: ^1.1.1
   zcodec: ^0.1.1
 
 dev_dependencies:
@@ -33,3 +35,9 @@ release:
     header: '# 📰 RawKit changelog'
     defaultIgnoredTypes: ['test']
     defaultIgnoredScopes: ['repo', 'docs', 'version', 'deps', 'tools']
+
+flutter:
+  assets:
+    - path: assets/web/
+      platforms:
+        - web

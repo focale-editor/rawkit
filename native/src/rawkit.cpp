@@ -510,4 +510,97 @@ RAWKIT_API const char *rawkit_bundled_version(void) {
 
 RAWKIT_API int32_t rawkit_api_version(void) { return 1; }
 
+#if defined(__EMSCRIPTEN__)
+RAWKIT_API const char *rawkit_web_metadata_string(rawkit_handle *handle,
+                                                  int32_t field) {
+  if (handle == nullptr || handle->metadata_context == nullptr) {
+    return nullptr;
+  }
+  const libraw_data_t *context = handle->metadata_context;
+  switch (field) {
+  case 0:
+    return context->idata.make;
+  case 1:
+    return context->idata.model;
+  case 2:
+    return context->idata.normalized_make;
+  case 3:
+    return context->idata.normalized_model;
+  case 4:
+    return context->lens.Lens;
+  case 5:
+    return context->lens.LensMake;
+  default:
+    return nullptr;
+  }
+}
+
+RAWKIT_API double rawkit_web_metadata_number(rawkit_handle *handle,
+                                              int32_t field) {
+  if (handle == nullptr || handle->metadata_context == nullptr) {
+    return 0.0;
+  }
+  const libraw_data_t *context = handle->metadata_context;
+  switch (field) {
+  case 0:
+    return context->other.iso_speed;
+  case 1:
+    return context->other.shutter;
+  case 2:
+    return context->other.aperture;
+  case 3:
+    return context->other.focal_len;
+  case 4:
+    return static_cast<double>(context->other.timestamp);
+  case 5:
+    return static_cast<double>(exif_orientation(context->sizes.flip));
+  case 6:
+    return static_cast<double>(context->sizes.width);
+  case 7:
+    return static_cast<double>(context->sizes.height);
+  case 8:
+    return static_cast<double>(context->sizes.raw_width);
+  case 9:
+    return static_cast<double>(context->sizes.raw_height);
+  default:
+    return 0.0;
+  }
+}
+
+RAWKIT_API int32_t rawkit_web_decode(rawkit_handle *handle, int32_t half_size,
+                                     int32_t white_balance,
+                                     int32_t demosaic_quality,
+                                     int32_t highlight_recovery,
+                                     int32_t color_space, double temperature,
+                                     double tint, rawkit_image **image) {
+  const rawkit_decode_options options = {
+      half_size,       white_balance,     demosaic_quality,
+      highlight_recovery, color_space,    temperature,
+      tint,
+  };
+  return rawkit_decode(handle, &options, image);
+}
+
+RAWKIT_API uint32_t rawkit_web_image_width(const rawkit_image *image) {
+  return image == nullptr ? 0 : image->width;
+}
+
+RAWKIT_API uint32_t rawkit_web_image_height(const rawkit_image *image) {
+  return image == nullptr ? 0 : image->height;
+}
+
+RAWKIT_API uint32_t rawkit_web_image_channels(const rawkit_image *image) {
+  return image == nullptr ? 0 : image->channels;
+}
+
+RAWKIT_API uint32_t rawkit_web_image_bits_per_sample(
+    const rawkit_image *image) {
+  return image == nullptr ? 0 : image->bits_per_sample;
+}
+
+RAWKIT_API uint8_t *rawkit_web_image_data(const rawkit_image *image) {
+  return image == nullptr ? nullptr : image->data;
+}
+#endif
+
 } // extern "C"

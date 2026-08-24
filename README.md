@@ -1,9 +1,10 @@
 # RawKit
 
 RawKit is a UI-independent Dart package for opening, inspecting and developing
-camera RAW files. It bundles a pinned native decoder behind a small C shim,
-runs expensive work in a dedicated isolate, caches linear RGB intermediates,
-and returns pixels in Dart-owned `Uint8List` or `Uint16List` buffers.
+camera RAW files. It bundles a pinned decoder behind a small C shim, runs
+expensive work in a dedicated isolate or Web Worker, caches linear RGB
+intermediates, and returns pixels in Dart-owned `Uint8List` or `Uint16List`
+buffers.
 
 The package is intended to be the RAW import/development brick of an image editor.
 It has no Flutter, widget, image-codec or application dependency.
@@ -25,28 +26,31 @@ It has no Flutter, widget, image-codec or application dependency.
 RawKit does not provide UI, cataloguing, layer editing, masks, local edits,
 image encoding, ICC profile embedding, or export formats such as JPEG/PNG.
 
-## Platforms and prerequisites
+## Platforms, assets and prerequisites
 
-RawKit targets Linux, macOS and Windows desktop. The source and hook are
+RawKit targets Linux, macOS, Windows and the Web. Native source and hooks are
 structured for the host architectures supported by Dart's C toolchain. This
-revision is validated on Linux x64; macOS arm64/x64 and Windows x64 are yet to be
-tested.
+revision is validated on Linux x64; macOS arm64/x64 and Windows x64 are yet to
+be tested. Dart 3.13 or later is required.
 
-Dart 3.13 or later and a working platform C++ compiler are required at build
-time. On its first build, RawKit downloads the pinned LibRaw source into the
-project's `.dart_tool` hook cache, verifies its SHA-256, and then compiles it.
-No manual setup is required.
+### Desktop
 
-To pre-download the source, for example for an offline build that follows, run:
+Desktop builds also require a working platform C++ compiler.
+On its first desktop build, RawKit downloads the pinned LibRaw
+source into the project's `.dart_tool` hook cache, verifies its SHA-256, and
+then compiles it. Web consumers use the precompiled package asset and need no
+compiler. No manual setup is required on either path.
+
+To pre-download the source for an offline desktop build, run:
 
 ```console
-dart run rawkit:download_library
+dart run rawkit:prepare_library desktop
 ```
 
 The command locates the installed RawKit package and extracts LibRaw beside its
 native build files. The automatic build path instead uses the project-local
-hook cache. LibRaw is therefore not included in the published RawKit archive.
-Re-run the command after upgrading RawKit or clearing the Pub cache.
+hook cache. LibRaw source is therefore not included in the published RawKit
+archive. Re-run the command after upgrading RawKit or clearing the Pub cache.
 
 The Dart build hook then compiles and bundles the native code asset
 automatically. Consumers do **not** install a system LibRaw, configure a
@@ -58,6 +62,28 @@ For a published dependency, ordinary use is simply:
 dart pub add rawkit
 dart run your_application.dart
 ```
+
+### Web
+
+Flutter automatically bundles RawKit's precompiled WebAssembly module and
+module Worker from the package's Web-only assets. A Flutter Web consumer has no
+setup command, script tag, cross-origin isolation header or Emscripten
+installation to manage.
+
+A plain Dart Web build does not bundle dependency assets. Prepare them once in
+the application's `web/rawkit/` directory and configure the matching URL:
+
+```console
+dart run rawkit:prepare_library web
+```
+
+```dart
+RawKit.configureWeb(assetBaseUrl: 'rawkit/');
+```
+
+Use `prepare_library all` to prepare both targets, `--force` to reinstall the
+desktop source, and `--output=directory` to select a different plain Dart Web
+destination.
 
 ## Usage
 
@@ -95,8 +121,12 @@ try {
 ```
 
 `RawDocument.openMemory(bytes)` is available when the client already owns the
-RAW data. RawKit copies memory input into the native document, so the caller can
-release or reuse its buffer after opening completes.
+RAW data. RawKit transfers an ownership-safe copy into the platform worker, so
+the caller can release or reuse its buffer after opening completes.
+
+Browsers cannot open arbitrary filesystem paths, so Web applications must read
+a browser `File` as bytes and use `openMemory` or `openBytes`. Calling
+`openFile` in a browser reports `UnsupportedError`.
 
 ## Pixel contract
 
@@ -122,10 +152,10 @@ final output conversion.
 
 ## Preview caching and concurrency
 
-Every document owns one long-lived worker isolate and a native parser handle.
-The calling isolate only performs message passing and receives transferred
-output buffers. Commands are serialized inside the worker, so `render` and
-`close` cannot race against the same native handle.
+Every document owns one long-lived worker isolate on native platforms or one
+module Web Worker in a browser. The caller only performs message passing and
+receives transferred output buffers. Commands are serialized inside the
+worker, so `render` and `close` cannot race against the same decoder handle.
 
 The preview and full-resolution caches are keyed by controls that require a
 native development pass:
@@ -142,14 +172,15 @@ release these potentially large intermediate buffers without closing the file.
 Always `await raw.close()`. A Dart `Finalizer` sends a best-effort shutdown if a
 document is abandoned, but deterministic cleanup is the supported lifecycle.
 
-## Native decoder and format coverage
+## Decoder and format coverage
 
 On first use, the build hook downloads the unmodified LibRaw `0.22.2` release
-archive into its project-local cache and verifies SHA-256
-`de86b035655accff8d4010f1a221fdf50d353cb7b1422ba26f14a0db92612cfa` before
-compilation. `dart run rawkit:download_library` offers the same verified source
-installation under RawKit's `native/third_party/libraw` directory, which is
-Git-ignored in a path checkout and absent from the published archive.
+archive into its project-local cache and verifies its SHA-256 before
+compilation. `dart run rawkit:prepare_library desktop` offers the same verified
+source installation under RawKit's `native/third_party/libraw` directory,
+which is Git-ignored in a path checkout and absent from the published archive.
+The Web build uses release-time Emscripten compilation, so consumers receive
+only the optimized module and its small JavaScript runtime.
 At runtime, `RawKit.backendInfo` and `document.backendInfo` report the actually
 loaded version, making an accidental binary mismatch easy to diagnose.
 
@@ -162,9 +193,17 @@ return `RawUnsupportedFileException` or `RawDecodeException`.
 Custom temperature/tint conversion is an intentionally lightweight camera-WB
 multiplier approximation, not an ICC/DCP color-managed workflow.
 
-See [architecture](docs/architecture.md), [Focale integration](docs/focale_integration.md),
-[testing](doc/testing.md), and [third-party licensing](THIRD_PARTY_NOTICES.md)
-for deeper detail.
+Maintainers can regenerate the published Web assets with Emscripten `4.0.15`:
+
+```console
+dart run tool/web_library_builder.dart
+```
+
+Set `RAWKIT_EMXX` or pass `--compiler=/path/to/em++` when `em++` is not on the
+current `PATH`. The builder rejects a different Emscripten version.
+
+See [architecture](docs/architecture.md), [testing](docs/testing.md), and
+[third-party licensing](THIRD_PARTY_NOTICES.md) for deeper detail.
 
 ## Example and benchmark
 

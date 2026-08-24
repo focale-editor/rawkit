@@ -92,6 +92,32 @@ RAWKIT_API const char *rawkit_bundled_version(void);
 
 RAWKIT_API int32_t rawkit_api_version(void);
 
+#if defined(__EMSCRIPTEN__)
+RAWKIT_API const char *rawkit_web_metadata_string(rawkit_handle *handle,
+                                                  int32_t field);
+
+RAWKIT_API double rawkit_web_metadata_number(rawkit_handle *handle,
+                                              int32_t field);
+
+RAWKIT_API int32_t rawkit_web_decode(rawkit_handle *handle, int32_t half_size,
+                                     int32_t white_balance,
+                                     int32_t demosaic_quality,
+                                     int32_t highlight_recovery,
+                                     int32_t color_space, double temperature,
+                                     double tint, rawkit_image **image);
+
+RAWKIT_API uint32_t rawkit_web_image_width(const rawkit_image *image);
+
+RAWKIT_API uint32_t rawkit_web_image_height(const rawkit_image *image);
+
+RAWKIT_API uint32_t rawkit_web_image_channels(const rawkit_image *image);
+
+RAWKIT_API uint32_t rawkit_web_image_bits_per_sample(
+    const rawkit_image *image);
+
+RAWKIT_API uint8_t *rawkit_web_image_data(const rawkit_image *image);
+#endif
+
 #ifdef __cplusplus
 }
 #endif

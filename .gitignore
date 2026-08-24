@@ -31,5 +31,5 @@ migrate_working_dir/
 /build/
 /coverage/
 
-# Downloaded by `dart run rawkit:download_library`; do not commit source.
+# Downloaded by `dart run rawkit:prepare_library desktop`; do not commit source.
 /native/third_party/libraw/
