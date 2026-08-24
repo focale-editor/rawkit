@@ -1,0 +1,8 @@
+test/
+docs/
+AGENTS.md
+native/third_party/libraw/
+benchmark/
+build/
+analysis_options.yaml
+rawkit.iml
