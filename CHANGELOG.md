@@ -1,5 +1,10 @@
 # 📰 RawKit changelog
 
+## v0.3.0
+Released on August 27, 2026.
+
+* **BREAKING REFACTOR**: Bumped `zcodec`. ([#f60cd9f](https://github.com/focale-editor/rawkit/commit/f60cd9f))
+
 ## v0.2.0
 Released on August 24, 2026.
 
