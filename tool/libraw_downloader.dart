@@ -59,16 +59,13 @@ Future<Directory> installLibRaw(
       );
     }
 
-    final Uint8List tarBytes = const GzipCodec().decode(
-      await archive.readAsBytes(),
-      maxOutputBytes: _maximumExpandedArchiveBytes,
-    );
+    final Uint8List tarBytes = const GzipCodec(maxOutputBytes: _maximumExpandedArchiveBytes).decode(await archive.readAsBytes());
     final TarArchive extracted = const TarDecoder(
       limits: TarLimits(
         maxEntryBytes: _maximumExpandedArchiveBytes,
         maxTotalBytes: _maximumExpandedArchiveBytes,
       ),
-    ).decode(tarBytes);
+    ).convert(tarBytes);
     await extractArchiveToDisk(extracted, temporaryDirectory);
     final Directory source = Directory(
       '${temporaryDirectory.path}${Platform.pathSeparator}LibRaw-$libRawVersion',

@@ -158,11 +158,8 @@ void main() {
           'rawkit-extractor-libraw-',
         );
         addTearDown(() => temporary.delete(recursive: true));
-        final Uint8List tarBytes = const GzipCodec().decode(
-          await File(archivePath).readAsBytes(),
-          maxOutputBytes: 512 * 1024 * 1024,
-        );
-        final TarArchive archive = const TarDecoder().decode(tarBytes);
+        final Uint8List tarBytes = const GzipCodec(maxOutputBytes: 512 * 1024 * 1024).decode(await File(archivePath).readAsBytes());
+        final TarArchive archive = const TarDecoder().convert(tarBytes);
 
         await extractArchiveToDisk(archive, temporary);
 

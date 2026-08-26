@@ -134,6 +134,7 @@ Future<void> _buildHostLinux({
   );
 }
 
+/// Finds the real clang++ or g++ executable.
 String _findRealLinuxCompiler() {
   const List<String> candidates = [
     '/usr/bin/clang++',
