@@ -11,8 +11,19 @@ dart test
 ```
 
 The fast suite covers settings, RGB/RGBA pixel-buffer contracts, synthetic
-tonal processing, typed failures, and native runtime/version loading. Native
-build hooks run automatically.
+tonal processing and resampling, preview scheduling, typed failures, and native
+runtime/version loading. Native build hooks run automatically.
+
+`test/synthetic_dng_test.dart` decodes a small DNG generated in memory by
+`test/support/synthetic_dng.dart`. It checks capture-time reporting, display
+orientation, preview resolution selection and preview cancellation through the
+real decoder, without a RAW corpus. Run it under several `TZ` values to cover
+time-zone handling:
+
+```console
+TZ=America/Los_Angeles dart test test/synthetic_dng_test.dart
+TZ=Asia/Tokyo dart test test/synthetic_dng_test.dart
+```
 
 ## RAW corpus
 
@@ -32,7 +43,11 @@ locally or in a controlled CI artifact store. A useful matrix includes:
 - Nikon compressed and uncompressed NEF;
 - Sony compressed and uncompressed ARW;
 - Fujifilm Bayer and X-Trans RAF;
-- conventional and phone/camera-produced DNG.
+- conventional and phone/camera-produced DNG;
+- a monochrome sensor, such as a Leica M Monochrom DNG.
+
+[raw.pixls.us](https://raw.pixls.us) publishes CC0-licensed samples for most
+cameras.
 
 The test suite intentionally skips corpus tests when the variable is absent;
 it never downloads photographs during a package build.

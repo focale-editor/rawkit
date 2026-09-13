@@ -26,6 +26,21 @@ resulting native and WebAssembly binaries contain LibRaw, so distributors must
 review and satisfy the selected LibRaw license in addition to RawKit's MIT
 license. This summary is engineering documentation, not legal advice.
 
+## OpenMP runtime
+
+When a desktop build enables OpenMP, the build hook bundles the compiler's
+OpenMP runtime next to the RawKit library:
+
+- LLVM `libomp.so` (Linux, Clang): Apache License 2.0 with LLVM Exceptions;
+- GCC `libgomp.so.1` (Linux, GCC): GNU GPL version 3 with the GCC Runtime
+  Library Exception;
+- Microsoft `vcomp140.dll` (Windows, MSVC): distributable under the Visual
+  Studio redistributable code terms.
+
+Distributors must satisfy the license of the runtime included in their build.
+
+## LibRaw build configuration
+
 No local patches are currently applied to LibRaw. The build disables optional
 external integrations (Adobe DNG SDK, RawSpeed, JPEG, JPEG XL, LCMS and zlib)
 so that the core decoder remains self-contained.
