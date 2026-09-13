@@ -6,7 +6,7 @@ RawBackendInfo get backendInfo => const RawBackendInfo(
   engine: 'LibRaw WebAssembly',
   runtimeVersion: '0.22.2-Release',
   bundledVersion: '0.22.2-Release',
-  apiVersion: 1,
+  apiVersion: 2,
 );
 
 /// Selects a custom browser asset location.

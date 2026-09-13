@@ -32,6 +32,7 @@ typedef struct rawkit_metadata {
   double shutter_speed;
   double aperture;
   double focal_length;
+  /* Recorded wall-clock seconds encoded as if UTC, or 0 when unknown. */
   int64_t timestamp;
   int32_t orientation;
   int32_t width;
@@ -72,6 +73,20 @@ RAWKIT_API rawkit_handle *rawkit_open_file(const char *path, int32_t *error);
 RAWKIT_API rawkit_handle *rawkit_open_memory(const uint8_t *data,
                                              size_t size,
                                              int32_t *error);
+
+/* Allocates a buffer that rawkit_open_owned_memory can take ownership of. */
+RAWKIT_API uint8_t *rawkit_memory_allocate(size_t size);
+
+/* Releases a buffer from rawkit_memory_allocate that was never opened. */
+RAWKIT_API void rawkit_memory_free(uint8_t *data);
+
+/*
+ * Opens a buffer from rawkit_memory_allocate without copying it.
+ *
+ * Ownership of data always moves to RawKit, including when opening fails.
+ */
+RAWKIT_API rawkit_handle *rawkit_open_owned_memory(uint8_t *data, size_t size,
+                                                   int32_t *error);
 
 RAWKIT_API int32_t rawkit_get_metadata(rawkit_handle *handle,
                                        rawkit_metadata *metadata);

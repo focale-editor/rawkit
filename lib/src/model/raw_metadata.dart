@@ -52,7 +52,12 @@ final class RawMetadata {
   /// Focal length in millimetres, when present.
   final double? focalLength;
 
-  /// Capture timestamp, interpreted as UTC because RAW files often omit a zone.
+  /// Capture time as shown by the camera's clock, without a time zone.
+  ///
+  /// RAW files rarely record a time zone, so the camera's wall-clock fields
+  /// are stored in a UTC [DateTime]: read its year, month, day, hour, minute
+  /// and second directly, without calling `toLocal()`. The value does not
+  /// depend on the time zone of the machine that opens the file.
   final DateTime? timestamp;
 
   /// Display orientation recorded by the camera.

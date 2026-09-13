@@ -41,6 +41,7 @@ final class WebRawWorkerClient {
   int _nextRequestId = 1;
   bool _closed = false;
   bool _closing = false;
+  Future<void>? _closeFuture;
 
   /// Starts a browser Worker backed by an ownership-safe copy of [bytes].
   static Future<WebRawWorkerStartResult> openMemory(Uint8List bytes) async {
@@ -170,14 +171,13 @@ final class WebRawWorkerClient {
   }
 
   /// Shuts down the Worker and releases its WebAssembly document.
-  Future<void> close() async {
+  ///
+  /// Concurrent and repeated calls share the same shutdown.
+  Future<void> close() => _closeFuture ??= _shutDown();
+
+  /// Performs the single shutdown shared by every [close] call.
+  Future<void> _shutDown() async {
     if (_closed) {
-      return;
-    }
-    if (_closing) {
-      while (!_closed) {
-        await Future<void>.delayed(Duration.zero);
-      }
       return;
     }
     _closing = true;

@@ -9,8 +9,11 @@
 #include <libraw/libraw.h>
 
 #include <cmath>
+#include <cstddef>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <ctime>
 #include <limits>
 #include <new>
 #include <string>
@@ -28,11 +31,23 @@ enum rawkit_source_type { RAWKIT_SOURCE_FILE, RAWKIT_SOURCE_MEMORY };
 struct rawkit_handle {
   rawkit_source_type source_type;
   std::string path;
-  std::vector<uint8_t> memory;
+  uint8_t *memory;
+  size_t memory_size;
   libraw_data_t *metadata_context;
+  int64_t timestamp;
+};
+
+/* Keeps LibRaw's processed image alive behind the public image view. */
+struct rawkit_image_storage {
+  rawkit_image image;
+  libraw_processed_image_t *processed;
 };
 
 namespace {
+
+/* The public view points into LibRaw's buffer, which must be 16-bit aligned. */
+static_assert(offsetof(libraw_processed_image_t, data) % alignof(uint16_t) == 0,
+              "LibRaw processed image data is not 16-bit aligned");
 
 void set_error(int32_t *error, int32_t value) {
   if (error != nullptr) {
@@ -65,11 +80,10 @@ int open_source(libraw_data_t *context, const rawkit_handle *handle) noexcept {
   }
   try {
     if (handle->source_type == RAWKIT_SOURCE_MEMORY) {
-      if (handle->memory.empty()) {
+      if (handle->memory == nullptr || handle->memory_size == 0) {
         return RAWKIT_ERROR_INVALID_ARGUMENT;
       }
-      return libraw_open_buffer(context, handle->memory.data(),
-                                handle->memory.size());
+      return libraw_open_buffer(context, handle->memory, handle->memory_size);
     }
 #if defined(_WIN32)
     const std::vector<wchar_t> wide_path = utf8_to_wide(handle->path);
@@ -116,7 +130,73 @@ void destroy_handle(rawkit_handle *handle) {
     libraw_close(handle->metadata_context);
     handle->metadata_context = nullptr;
   }
+  std::free(handle->memory);
+  handle->memory = nullptr;
   delete handle;
+}
+
+/*
+ * Reports whether LibRaw stores this format's capture time without converting
+ * it through mktime(). CRW, Cine and X3F record seconds that are used as-is.
+ */
+bool has_unconverted_timestamp(const uint8_t *header, size_t size) {
+  return (size >= 14 && std::memcmp(header + 6, "HEAPCCDR", 8) == 0) ||
+         (size >= 2 && std::memcmp(header, "CI", 2) == 0) ||
+         (size >= 4 && std::memcmp(header, "FOVb", 4) == 0);
+}
+
+bool read_header(const rawkit_handle *handle, uint8_t *header, size_t *size) {
+  if (handle->source_type == RAWKIT_SOURCE_MEMORY) {
+    *size = handle->memory_size < 16 ? handle->memory_size : 16;
+    std::memcpy(header, handle->memory, *size);
+    return true;
+  }
+#if defined(_WIN32)
+  const std::vector<wchar_t> wide_path = utf8_to_wide(handle->path);
+  FILE *file = wide_path.empty() ? nullptr : _wfopen(wide_path.data(), L"rb");
+#else
+  FILE *file = std::fopen(handle->path.c_str(), "rb");
+#endif
+  if (file == nullptr) {
+    return false;
+  }
+  *size = std::fread(header, 1, 16, file);
+  std::fclose(file);
+  return true;
+}
+
+/*
+ * Returns the camera's recorded wall-clock time encoded as seconds since the
+ * Unix epoch, as if that wall clock were UTC.
+ *
+ * RAW containers rarely store a time zone, and LibRaw converts most recorded
+ * date strings with mktime(), which applies the host's local time zone. This
+ * reverses that conversion so the result does not depend on the machine that
+ * opened the file.
+ */
+int64_t wall_clock_timestamp(const rawkit_handle *handle, time_t timestamp) {
+  if (timestamp <= 0) {
+    return 0;
+  }
+  uint8_t header[16];
+  size_t header_size = 0;
+  if (read_header(handle, header, &header_size) &&
+      has_unconverted_timestamp(header, header_size)) {
+    return static_cast<int64_t>(timestamp);
+  }
+  std::tm local = std::tm();
+#if defined(_WIN32)
+  if (localtime_s(&local, &timestamp) != 0) {
+    return 0;
+  }
+  const time_t result = _mkgmtime(&local);
+#else
+  if (localtime_r(&timestamp, &local) == nullptr) {
+    return 0;
+  }
+  const time_t result = timegm(&local);
+#endif
+  return result <= 0 ? 0 : static_cast<int64_t>(result);
 }
 
 int32_t exif_orientation(int flip) {
@@ -262,15 +342,27 @@ int configure_context(libraw_data_t *context,
   context->params.bright = 1.0f;
   context->params.gamm[0] = 1.0;
   context->params.gamm[1] = 1.0;
-  context->params.use_camera_wb = options->white_balance == 0 ? 1 : 0;
-  context->params.use_auto_wb = options->white_balance == 1 ? 1 : 0;
-  if (options->white_balance == 2) {
+  // Monochrome sensors have no channels to balance, and LibRaw reports invalid
+  // camera multipliers for them that crush highlight-recovery output to black.
+  const bool monochrome = context->idata.colors == 1;
+  context->params.use_camera_wb =
+      !monochrome && options->white_balance == 0 ? 1 : 0;
+  context->params.use_auto_wb =
+      !monochrome && options->white_balance == 1 ? 1 : 0;
+  if (!monochrome && options->white_balance == 2) {
     apply_custom_white_balance(context, options->temperature, options->tint);
   }
   return RAWKIT_SUCCESS;
 }
 
-int copy_processed_image(const libraw_processed_image_t *processed,
+/*
+ * Exposes a LibRaw processed image as a three-channel RawKit image.
+ *
+ * Three-channel output is borrowed without copying: ownership of [processed]
+ * moves into the returned image. Monochrome output is expanded into a new
+ * buffer and [processed] is released. On failure the caller keeps ownership.
+ */
+int wrap_processed_image(libraw_processed_image_t *processed,
                          rawkit_image **result) {
   if (processed == nullptr || result == nullptr ||
       processed->type != LIBRAW_IMAGE_BITMAP || processed->width == 0 ||
@@ -287,7 +379,7 @@ int copy_processed_image(const libraw_processed_image_t *processed,
   const size_t pixel_count = width * height;
   const size_t source_channels = static_cast<size_t>(processed->colors);
   if (pixel_count > std::numeric_limits<size_t>::max() /
-                        (source_channels * sizeof(uint16_t))) {
+                        (3u * sizeof(uint16_t))) {
     return RAWKIT_ERROR_OUT_OF_MEMORY;
   }
   const size_t source_size =
@@ -295,39 +387,53 @@ int copy_processed_image(const libraw_processed_image_t *processed,
   if (static_cast<size_t>(processed->data_size) < source_size) {
     return RAWKIT_ERROR_UNEXPECTED_OUTPUT;
   }
-  if (pixel_count > std::numeric_limits<size_t>::max() / (3u * sizeof(uint16_t))) {
-    return RAWKIT_ERROR_OUT_OF_MEMORY;
-  }
   const size_t output_size = pixel_count * 3u * sizeof(uint16_t);
-  rawkit_image *image =
-      static_cast<rawkit_image *>(std::calloc(1, sizeof(rawkit_image)));
-  if (image == nullptr) {
-    return RAWKIT_ERROR_OUT_OF_MEMORY;
-  }
-  image->data = static_cast<uint8_t *>(std::malloc(output_size));
-  if (image->data == nullptr) {
-    std::free(image);
+  rawkit_image_storage *storage = static_cast<rawkit_image_storage *>(
+      std::calloc(1, sizeof(rawkit_image_storage)));
+  if (storage == nullptr) {
     return RAWKIT_ERROR_OUT_OF_MEMORY;
   }
 
-  image->width = processed->width;
-  image->height = processed->height;
-  image->channels = 3;
-  image->bits_per_sample = 16;
-  image->data_size = static_cast<uint64_t>(output_size);
-  const uint16_t *source = reinterpret_cast<const uint16_t *>(processed->data);
-  uint16_t *destination = reinterpret_cast<uint16_t *>(image->data);
   if (source_channels == 3) {
-    std::memcpy(destination, source, output_size);
+    storage->image.data = processed->data;
+    storage->processed = processed;
   } else {
+    storage->image.data = static_cast<uint8_t *>(std::malloc(output_size));
+    if (storage->image.data == nullptr) {
+      std::free(storage);
+      return RAWKIT_ERROR_OUT_OF_MEMORY;
+    }
+    const uint16_t *source =
+        reinterpret_cast<const uint16_t *>(processed->data);
+    uint16_t *destination = reinterpret_cast<uint16_t *>(storage->image.data);
     for (size_t index = 0; index < pixel_count; ++index) {
       destination[index * 3] = source[index];
       destination[index * 3 + 1] = source[index];
       destination[index * 3 + 2] = source[index];
     }
+    libraw_dcraw_clear_mem(processed);
   }
-  *result = image;
+
+  storage->image.width = static_cast<uint32_t>(width);
+  storage->image.height = static_cast<uint32_t>(height);
+  storage->image.channels = 3;
+  storage->image.bits_per_sample = 16;
+  storage->image.data_size = static_cast<uint64_t>(output_size);
+  *result = &storage->image;
   return RAWKIT_SUCCESS;
+}
+
+rawkit_handle *open_handle(rawkit_handle *handle, int32_t *error) {
+  const int result = open_source(handle->metadata_context, handle);
+  if (result != LIBRAW_SUCCESS) {
+    destroy_handle(handle);
+    set_error(error, result);
+    return nullptr;
+  }
+  handle->timestamp = wall_clock_timestamp(
+      handle, handle->metadata_context->other.timestamp);
+  set_error(error, RAWKIT_SUCCESS);
+  return handle;
 }
 
 } // namespace
@@ -355,14 +461,7 @@ RAWKIT_API rawkit_handle *rawkit_open_file(const char *path, int32_t *error) {
     set_error(error, RAWKIT_ERROR_INVALID_ARGUMENT);
     return nullptr;
   }
-  const int result = open_source(handle->metadata_context, handle);
-  if (result != LIBRAW_SUCCESS) {
-    destroy_handle(handle);
-    set_error(error, result);
-    return nullptr;
-  }
-  set_error(error, RAWKIT_SUCCESS);
-  return handle;
+  return open_handle(handle, error);
 }
 
 RAWKIT_API rawkit_handle *rawkit_open_memory(const uint8_t *data, size_t size,
@@ -371,31 +470,38 @@ RAWKIT_API rawkit_handle *rawkit_open_memory(const uint8_t *data, size_t size,
     set_error(error, RAWKIT_ERROR_INVALID_ARGUMENT);
     return nullptr;
   }
-  rawkit_handle *handle = create_handle(error);
-  if (handle == nullptr) {
-    return nullptr;
-  }
-  try {
-    handle->source_type = RAWKIT_SOURCE_MEMORY;
-    handle->memory.assign(data, data + size);
-  } catch (const std::bad_alloc &) {
-    destroy_handle(handle);
+  uint8_t *copy = rawkit_memory_allocate(size);
+  if (copy == nullptr) {
     set_error(error, RAWKIT_ERROR_OUT_OF_MEMORY);
     return nullptr;
-  } catch (...) {
-    destroy_handle(handle);
+  }
+  std::memcpy(copy, data, size);
+  return rawkit_open_owned_memory(copy, size, error);
+}
+
+RAWKIT_API rawkit_handle *rawkit_open_owned_memory(uint8_t *data, size_t size,
+                                                   int32_t *error) {
+  if (data == nullptr || size == 0) {
+    std::free(data);
     set_error(error, RAWKIT_ERROR_INVALID_ARGUMENT);
     return nullptr;
   }
-  const int result = open_source(handle->metadata_context, handle);
-  if (result != LIBRAW_SUCCESS) {
-    destroy_handle(handle);
-    set_error(error, result);
+  rawkit_handle *handle = create_handle(error);
+  if (handle == nullptr) {
+    std::free(data);
     return nullptr;
   }
-  set_error(error, RAWKIT_SUCCESS);
-  return handle;
+  handle->source_type = RAWKIT_SOURCE_MEMORY;
+  handle->memory = data;
+  handle->memory_size = size;
+  return open_handle(handle, error);
 }
+
+RAWKIT_API uint8_t *rawkit_memory_allocate(size_t size) {
+  return size == 0 ? nullptr : static_cast<uint8_t *>(std::malloc(size));
+}
+
+RAWKIT_API void rawkit_memory_free(uint8_t *data) { std::free(data); }
 
 RAWKIT_API int32_t rawkit_get_metadata(rawkit_handle *handle,
                                        rawkit_metadata *metadata) {
@@ -417,7 +523,7 @@ RAWKIT_API int32_t rawkit_get_metadata(rawkit_handle *handle,
   metadata->shutter_speed = context->other.shutter;
   metadata->aperture = context->other.aperture;
   metadata->focal_length = context->other.focal_len;
-  metadata->timestamp = static_cast<int64_t>(context->other.timestamp);
+  metadata->timestamp = handle->timestamp;
   metadata->orientation = exif_orientation(context->sizes.flip);
   metadata->width = context->sizes.width;
   metadata->height = context->sizes.height;
@@ -459,8 +565,10 @@ RAWKIT_API int32_t rawkit_decode(rawkit_handle *handle,
                      ? RAWKIT_ERROR_UNEXPECTED_OUTPUT
                      : memory_error;
       } else {
-        result = copy_processed_image(processed, image);
-        libraw_dcraw_clear_mem(processed);
+        result = wrap_processed_image(processed, image);
+        if (result != RAWKIT_SUCCESS) {
+          libraw_dcraw_clear_mem(processed);
+        }
       }
     }
   } catch (const std::bad_alloc &) {
@@ -468,6 +576,7 @@ RAWKIT_API int32_t rawkit_decode(rawkit_handle *handle,
   } catch (...) {
     result = RAWKIT_ERROR_UNEXPECTED_OUTPUT;
   }
+  // Releases LibRaw's working buffers before the caller copies the pixels.
   libraw_close(context);
   return result;
 }
@@ -476,9 +585,14 @@ RAWKIT_API void rawkit_image_free(rawkit_image *image) {
   if (image == nullptr) {
     return;
   }
-  std::free(image->data);
-  image->data = nullptr;
-  std::free(image);
+  rawkit_image_storage *storage =
+      reinterpret_cast<rawkit_image_storage *>(image);
+  if (storage->processed != nullptr) {
+    libraw_dcraw_clear_mem(storage->processed);
+  } else {
+    std::free(storage->image.data);
+  }
+  std::free(storage);
 }
 
 RAWKIT_API void rawkit_close(rawkit_handle *handle) { destroy_handle(handle); }
@@ -508,7 +622,7 @@ RAWKIT_API const char *rawkit_bundled_version(void) {
   return LIBRAW_VERSION_STR;
 }
 
-RAWKIT_API int32_t rawkit_api_version(void) { return 1; }
+RAWKIT_API int32_t rawkit_api_version(void) { return 2; }
 
 #if defined(__EMSCRIPTEN__)
 RAWKIT_API const char *rawkit_web_metadata_string(rawkit_handle *handle,
@@ -551,7 +665,7 @@ RAWKIT_API double rawkit_web_metadata_number(rawkit_handle *handle,
   case 3:
     return context->other.focal_len;
   case 4:
-    return static_cast<double>(context->other.timestamp);
+    return static_cast<double>(handle->timestamp);
   case 5:
     return static_cast<double>(exif_orientation(context->sizes.flip));
   case 6:

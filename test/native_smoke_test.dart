@@ -8,7 +8,7 @@ void main() {
     expect(info.engine, 'LibRaw');
     expect(info.runtimeVersion, RawKit.bundledNativeVersion);
     expect(info.bundledVersion, RawKit.bundledNativeVersion);
-    expect(info.apiVersion, 1);
+    expect(info.apiVersion, 2);
     expect(info.isExpectedVersion, isTrue);
   });
 }

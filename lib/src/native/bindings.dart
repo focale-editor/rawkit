@@ -43,7 +43,7 @@ final class NativeRawMetadata extends ffi.Struct {
   @ffi.Double()
   external double focalLength;
 
-  /// Unix capture timestamp.
+  /// Recorded wall-clock capture time in seconds, encoded as if it were UTC.
   @ffi.Int64()
   external int timestamp;
 
@@ -141,6 +141,35 @@ external ffi.Pointer<ffi.Void> rawkitOpenFile(
 >(symbol: 'rawkit_open_memory')
 /// Opens a memory-backed native document.
 external ffi.Pointer<ffi.Void> rawkitOpenMemory(
+  ffi.Pointer<ffi.Uint8> data,
+  int size,
+  ffi.Pointer<ffi.Int32> error,
+);
+
+@ffi.Native<ffi.Pointer<ffi.Uint8> Function(ffi.Size)>(
+  symbol: 'rawkit_memory_allocate',
+)
+/// Allocates a buffer that [rawkitOpenOwnedMemory] can take ownership of.
+external ffi.Pointer<ffi.Uint8> rawkitMemoryAllocate(int size);
+
+@ffi.Native<ffi.Void Function(ffi.Pointer<ffi.Uint8>)>(
+  symbol: 'rawkit_memory_free',
+)
+/// Releases a buffer from [rawkitMemoryAllocate] that was never opened.
+external void rawkitMemoryFree(ffi.Pointer<ffi.Uint8> data);
+
+@ffi.Native<
+  ffi.Pointer<ffi.Void> Function(
+    ffi.Pointer<ffi.Uint8>,
+    ffi.Size,
+    ffi.Pointer<ffi.Int32>,
+  )
+>(symbol: 'rawkit_open_owned_memory')
+/// Opens a buffer from [rawkitMemoryAllocate] without copying it.
+///
+/// Ownership of [data] always moves to the native document, including when
+/// opening fails.
+external ffi.Pointer<ffi.Void> rawkitOpenOwnedMemory(
   ffi.Pointer<ffi.Uint8> data,
   int size,
   ffi.Pointer<ffi.Int32> error,

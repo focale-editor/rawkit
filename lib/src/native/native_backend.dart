@@ -43,16 +43,30 @@ final class NativeRawDocument {
     }
   }
 
-  /// Opens a memory-backed RAW document after the native shim copies its bytes.
+  /// Opens a memory-backed RAW document from one native copy of [bytes].
+  ///
+  /// The copy is handed to the native document, which owns it until closed.
   factory NativeRawDocument.openMemory(Uint8List bytes) {
     if (bytes.isEmpty) {
       throw const RawIOException(message: 'The RAW memory buffer is empty.');
     }
-    final ffi.Pointer<ffi.Uint8> nativeBytes = calloc<ffi.Uint8>(bytes.length);
+    final ffi.Pointer<ffi.Uint8> nativeBytes = rawkitMemoryAllocate(bytes.length);
+    if (nativeBytes == ffi.nullptr) {
+      throw const RawMemoryException(
+        message: 'Could not allocate native memory for the RAW buffer.',
+        code: -200002,
+      );
+    }
     final ffi.Pointer<ffi.Int32> error = calloc<ffi.Int32>();
     try {
       nativeBytes.asTypedList(bytes.length).setAll(0, bytes);
-      final ffi.Pointer<ffi.Void> handle = rawkitOpenMemory(
+    } on Object {
+      calloc.free(error);
+      rawkitMemoryFree(nativeBytes);
+      rethrow;
+    }
+    try {
+      final ffi.Pointer<ffi.Void> handle = rawkitOpenOwnedMemory(
         nativeBytes,
         bytes.length,
         error,
@@ -68,7 +82,6 @@ final class NativeRawDocument {
       }
     } finally {
       calloc.free(error);
-      calloc.free(nativeBytes);
     }
   }
 
@@ -87,10 +100,8 @@ final class NativeRawDocument {
     required bool halfSize,
   }) {
     _ensureOpen();
-    final ffi.Pointer<NativeRawDecodeOptions> options =
-        calloc<NativeRawDecodeOptions>();
-    final ffi.Pointer<ffi.Pointer<NativeRawImage>> output =
-        calloc<ffi.Pointer<NativeRawImage>>();
+    final ffi.Pointer<NativeRawDecodeOptions> options = calloc<NativeRawDecodeOptions>();
+    final ffi.Pointer<ffi.Pointer<NativeRawImage>> output = calloc<ffi.Pointer<NativeRawImage>>();
     try {
       options.ref
         ..halfSize = halfSize ? 1 : 0
@@ -117,12 +128,7 @@ final class NativeRawDocument {
         final int bitsPerSample = nativeImage.ref.bitsPerSample;
         final int dataSize = nativeImage.ref.dataSize;
         final int sampleCount = width * height * channels;
-        if (width <= 0 ||
-            height <= 0 ||
-            channels != 3 ||
-            bitsPerSample != 16 ||
-            dataSize != sampleCount * 2 ||
-            nativeImage.ref.data == ffi.nullptr) {
+        if (width <= 0 || height <= 0 || channels != 3 || bitsPerSample != 16 || dataSize != sampleCount * 2 || nativeImage.ref.data == ffi.nullptr) {
           throw const RawDecodeException(
             message: 'The native decoder returned an invalid RGB buffer.',
           );
@@ -206,8 +212,7 @@ final class NativeRawDocument {
     return value.isEmpty ? null : value;
   }
 
-  static double? _positiveOrNull(double value) =>
-      value.isFinite && value > 0 ? value : null;
+  static double? _positiveOrNull(double value) => value.isFinite && value > 0 ? value : null;
 }
 
 /// Converts a native error code into a stable public exception type.

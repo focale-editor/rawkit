@@ -23,8 +23,11 @@ It has no Flutter, widget, image-codec or application dependency.
 * Exposure, contrast, highlights, shadows, whites, blacks, saturation and
   vibrance controls.
 * 8-bit and 16-bit RGB output in sRGB, Adobe RGB (1998), or ProPhoto RGB.
-* Half-resolution native preview decode plus size-limited resampling.
+* Half-resolution native preview decode, with a full decode when the requested
+  preview needs more pixels, and alias-free area-averaged downscaling.
 * Separate preview/full linear caches that survive tonal-only edits.
+* Interactive previews that skip superseded requests instead of queueing them.
+* Parallel demosaicing through OpenMP on Linux and Windows.
 * Typed errors and idempotent asynchronous cleanup.
 
 RawKit does not provide UI, cataloguing, layer editing, masks, local edits,
@@ -132,6 +135,15 @@ Browsers cannot open arbitrary filesystem paths, so Web applications must read
 a browser `File` as bytes and use `openMemory` or `openBytes`. Calling
 `openFile` in a browser reports `UnsupportedError`.
 
+`openFile` keeps the file open until the document is closed, because later
+decodes read it again. On Windows the file therefore cannot be deleted or
+replaced while its document is open; use `openMemory` when that matters.
+
+`RawMetadata.timestamp` is the capture time shown by the camera's clock. RAW
+files rarely record a time zone, so the wall-clock fields are stored in a UTC
+`DateTime`: read its fields directly instead of calling `toLocal()`. The value
+is the same whatever the time zone of the machine opening the file.
+
 ## Pixel contract
 
 `RawImage` contains tightly packed, row-major, interleaved RGB samples with no
@@ -170,8 +182,16 @@ native development pass:
 * output color-space primaries.
 
 Exposure and all tonal/color sliders operate on the cached linear image. Slider
-updates therefore avoid RAW unpacking and demosaicing. Call `clearCache()` to
-release these potentially large intermediate buffers without closing the file.
+updates therefore avoid RAW unpacking and demosaicing. The last downscaled copy
+of a decode is cached too, so repeated previews at the same size only run the
+tonal pass. A stale decode is released before its replacement is allocated.
+Call `clearCache()` to release these potentially large intermediate buffers
+without closing the file.
+
+Only one preview renders at a time. While it runs, a new `renderPreview` call
+waits, and any newer call replaces the waiting one: the replaced future fails
+with `RawCancelledException`. Slider-driven callers can ignore that exception
+and simply display each image they receive.
 
 Always `await raw.close()`. A Dart `Finalizer` sends a best-effort shutdown if a
 document is abandoned, but deterministic cleanup is the supported lifecycle.
@@ -191,8 +211,25 @@ loaded version, making an accidental binary mismatch easy to diagnose.
 The self-contained build enables LibRaw's core CR2/CR3, NEF, ARW, RAF, DNG and
 other built-in decoders. Optional integrations requiring separate SDKs or
 libraries—Adobe DNG SDK, RawSpeed, JPEG/JPEG XL, LCMS and zlib—are disabled.
-Consequently, specialized DNG variants that depend on those integrations can
-return `RawUnsupportedFileException` or `RawDecodeException`.
+Consequently, DNG variants that depend on those integrations, notably lossy
+(JPEG-compressed) DNG and deflate-compressed floating-point DNG such as HDR
+merges, can return `RawUnsupportedFileException` or `RawDecodeException`.
+
+White balance has no effect on monochrome sensors, which have no color channels
+to balance.
+
+When the desktop compiler supports OpenMP, LibRaw's demosaicing runs on all
+CPU cores. The build hook bundles the matching runtime (`libomp.so` or
+`libgomp.so.1` on Linux, `vcomp140.dll` on Windows) beside the RawKit library,
+so applications do not depend on it being installed. If the compiler or its
+runtime is unavailable, RawKit is built without parallelism. macOS builds and
+the Web module decode on a single thread. Only RawKit's C API is exported from
+the native library, so its LibRaw copy cannot clash with another LibRaw loaded
+by the application.
+
+The Web module uses WebAssembly exceptions and SIMD, available in Chrome and
+Edge 91, Firefox 89 and Safari 16.4 or later. It can grow to 4 GB, enough for
+full-resolution decodes of 100-megapixel sensors.
 
 Custom temperature/tint conversion is an intentionally lightweight camera-WB
 multiplier approximation, not an ICC/DCP color-managed workflow.

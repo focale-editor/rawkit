@@ -3,6 +3,7 @@ import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:rawkit/src/develop/settings_validation.dart';
+import 'package:rawkit/src/document/preview_scheduler.dart';
 import 'package:rawkit/src/model/raw_backend_info.dart';
 import 'package:rawkit/src/model/raw_develop_settings.dart';
 import 'package:rawkit/src/model/raw_exception.dart';
@@ -31,6 +32,7 @@ final class RawDocument {
   });
 
   final RawWorkerClient _worker;
+  final PreviewScheduler _previews = PreviewScheduler();
   Future<void>? _closeFuture;
 
   /// Camera and capture metadata parsed while opening the source.
@@ -73,6 +75,13 @@ final class RawDocument {
   /// Changes to exposure, contrast, highlights, shadows, whites, blacks,
   /// saturation, or vibrance reuse the cached decode. White balance,
   /// demosaicing, highlight recovery, and color space trigger a new decode.
+  /// Previews come from a faster half-resolution decode unless the requested
+  /// bounds need more pixels, in which case the full-resolution decode is used.
+  ///
+  /// Only one preview renders at a time. A preview requested while another is
+  /// rendering waits, and is replaced by any newer preview request: the
+  /// replaced future fails with [RawCancelledException], which interactive
+  /// callers can ignore.
   Future<RawImage> renderPreview(
     RawDevelopSettings settings, {
     int maxWidth = 1600,
@@ -87,13 +96,15 @@ final class RawDocument {
         message: 'Preview dimensions must be positive.',
       );
     }
-    return _worker.render(
-      settings: settings,
-      bitDepth: bitDepth,
-      colorSpace: colorSpace,
-      preview: true,
-      maximumWidth: maxWidth,
-      maximumHeight: maxHeight ?? 0x7fffffff,
+    return _previews.schedule(
+      () => _worker.render(
+        settings: settings,
+        bitDepth: bitDepth,
+        colorSpace: colorSpace,
+        preview: true,
+        maximumWidth: maxWidth,
+        maximumHeight: maxHeight ?? 0x7fffffff,
+      ),
     );
   }
 
@@ -133,6 +144,7 @@ final class RawDocument {
       return existing;
     }
     _finalizer.detach(this);
+    _previews.cancelWaiting();
     final Future<void> closing = _worker.close();
     _closeFuture = closing;
     return closing;

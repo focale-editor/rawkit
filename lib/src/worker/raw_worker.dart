@@ -3,6 +3,7 @@ import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:rawkit/src/develop/linear_image.dart';
+import 'package:rawkit/src/develop/render_geometry.dart';
 import 'package:rawkit/src/develop/tone_processor.dart';
 import 'package:rawkit/src/model/raw_backend_info.dart';
 import 'package:rawkit/src/model/raw_develop_settings.dart';
@@ -54,6 +55,7 @@ final class RawWorkerClient {
   bool _closed = false;
   bool _closing = false;
   Future<void>? _disposeFuture;
+  Future<void>? _closeFuture;
 
   /// Starts a worker backed by a filesystem path.
   static Future<RawWorkerStartResult> openFile(String path) => _start({'kind': 'file', 'path': path});
@@ -215,14 +217,13 @@ final class RawWorkerClient {
   }
 
   /// Shuts down the worker and releases the native document.
-  Future<void> close() async {
+  ///
+  /// Concurrent and repeated calls share the same shutdown.
+  Future<void> close() => _closeFuture ??= _shutDown();
+
+  /// Performs the single shutdown shared by every [close] call.
+  Future<void> _shutDown() async {
     if (_closed) {
-      return;
-    }
-    if (_closing) {
-      while (!_closed) {
-        await Future<void>.delayed(Duration.zero);
-      }
       return;
     }
     _closing = true;
@@ -322,10 +323,7 @@ Future<void> rawWorkerMain(Map<Object?, Object?> startup) async {
       'backend': serializeBackendInfo(NativeRawDocument.backendInfo()),
     });
 
-    LinearImage? previewCache;
-    LinearImage? fullCache;
-    _DecodeCacheKey? previewKey;
-    _DecodeCacheKey? fullKey;
+    final _LinearImageCaches caches = _LinearImageCaches();
 
     NativeRawDocument requireDocument() {
       final NativeRawDocument? current = document;
@@ -352,45 +350,35 @@ Future<void> rawWorkerMain(Map<Object?, Object?> startup) async {
               rawCommand['settings'],
             );
             final RawColorSpace colorSpace = RawColorSpace.values[_integer(rawCommand['colorSpace'], 'colorSpace')];
-            final bool preview = _boolean(rawCommand['preview'], 'preview');
-            final _DecodeCacheKey requestedKey = _DecodeCacheKey.fromSettings(
-              settings,
-              colorSpace,
+            final int maximumWidth = _integer(rawCommand['maximumWidth'], 'maximumWidth');
+            final int maximumHeight = _integer(rawCommand['maximumHeight'], 'maximumHeight');
+            final NativeRawDocument current = requireDocument();
+            final bool halfSize =
+                _boolean(rawCommand['preview'], 'preview') &&
+                halfSizeCoversPreview(
+                  width: current.metadata.width,
+                  height: current.metadata.height,
+                  orientation: current.metadata.orientation,
+                  maximumWidth: maximumWidth,
+                  maximumHeight: maximumHeight,
+                );
+            final LinearImage linearImage = caches.developable(
+              key: _DecodeCacheKey.fromSettings(settings, colorSpace),
+              halfSize: halfSize,
+              maximumWidth: maximumWidth,
+              maximumHeight: maximumHeight,
+              decode: () => current.decode(
+                settings: settings,
+                colorSpace: colorSpace,
+                halfSize: halfSize,
+              ),
             );
-            late LinearImage linearImage;
-            if (preview) {
-              if (previewCache == null || previewKey != requestedKey) {
-                previewCache = requireDocument().decode(
-                  settings: settings,
-                  colorSpace: colorSpace,
-                  halfSize: true,
-                );
-                previewKey = requestedKey;
-              }
-              linearImage = previewCache;
-            } else {
-              if (fullCache == null || fullKey != requestedKey) {
-                fullCache = requireDocument().decode(
-                  settings: settings,
-                  colorSpace: colorSpace,
-                  halfSize: false,
-                );
-                fullKey = requestedKey;
-              }
-              linearImage = fullCache;
-            }
             final RawImage image = ToneProcessor.render(
               source: linearImage,
               settings: settings,
               bitDepth: RawBitDepth.values[_integer(rawCommand['bitDepth'], 'bitDepth')],
-              maximumWidth: _integer(
-                rawCommand['maximumWidth'],
-                'maximumWidth',
-              ),
-              maximumHeight: _integer(
-                rawCommand['maximumHeight'],
-                'maximumHeight',
-              ),
+              maximumWidth: maximumWidth,
+              maximumHeight: maximumHeight,
             );
             replyPort.send({
               'type': 'response',
@@ -404,10 +392,7 @@ Future<void> rawWorkerMain(Map<Object?, Object?> startup) async {
               'pixels': TransferableTypedData.fromList([image.bytes]),
             });
           case 'clearCache':
-            previewCache = null;
-            fullCache = null;
-            previewKey = null;
-            fullKey = null;
+            caches.clear();
             replyPort.send({'type': 'response', 'id': rawId, 'ok': true});
           case 'close':
             document?.close();
@@ -457,6 +442,113 @@ Uint8List _transferredBytes(Object? value, String name) {
     throw RawBackendException(message: 'Worker field $name is invalid.');
   }
   return value.materialize().asUint8List();
+}
+
+/// Linear decodes and their last downscaled copy owned by the worker isolate.
+final class _LinearImageCaches {
+  /// Half-resolution decode used by previews.
+  LinearImage? _half;
+
+  /// Decoder controls that produced [_half].
+  _DecodeCacheKey? _halfKey;
+
+  /// Full-resolution decode used by renders and large previews.
+  LinearImage? _full;
+
+  /// Decoder controls that produced [_full].
+  _DecodeCacheKey? _fullKey;
+
+  /// Last area-averaged copy of [_resampledSource].
+  LinearImage? _resampled;
+
+  /// Decode from which [_resampled] was derived.
+  LinearImage? _resampledSource;
+
+  /// Returns a linear image sized for the requested bounds.
+  ///
+  /// The half- or full-resolution decode is reused while [key] matches, and a
+  /// stale decode is released before [decode] allocates its replacement. When
+  /// the bounds require downscaling, the last area-averaged copy is reused
+  /// because it does not depend on tonal settings.
+  LinearImage developable({
+    required _DecodeCacheKey key,
+    required bool halfSize,
+    required int maximumWidth,
+    required int maximumHeight,
+    required LinearImage Function() decode,
+  }) {
+    final LinearImage decoded = halfSize ? _decodedHalf(key, decode) : _decodedFull(key, decode);
+    final ({int width, int height}) dimensions = fitDimensions(
+      width: decoded.width,
+      height: decoded.height,
+      maximumWidth: maximumWidth,
+      maximumHeight: maximumHeight,
+    );
+    if (dimensions.width == decoded.width && dimensions.height == decoded.height) {
+      return decoded;
+    }
+    final LinearImage? resampled = _resampled;
+    if (resampled != null && identical(_resampledSource, decoded) && resampled.width == dimensions.width && resampled.height == dimensions.height) {
+      return resampled;
+    }
+    _resampled = null;
+    final LinearImage replacement = ToneProcessor.resample(
+      decoded,
+      dimensions.width,
+      dimensions.height,
+    );
+    _resampled = replacement;
+    _resampledSource = decoded;
+    return replacement;
+  }
+
+  /// Returns the half-resolution decode for [key], decoding on a cache miss.
+  LinearImage _decodedHalf(_DecodeCacheKey key, LinearImage Function() decode) {
+    final LinearImage? cached = _half;
+    if (cached != null && _halfKey == key) {
+      return cached;
+    }
+    _releaseDerived(cached);
+    _half = null;
+    _halfKey = null;
+    final LinearImage decoded = decode();
+    _half = decoded;
+    _halfKey = key;
+    return decoded;
+  }
+
+  /// Returns the full-resolution decode for [key], decoding on a cache miss.
+  LinearImage _decodedFull(_DecodeCacheKey key, LinearImage Function() decode) {
+    final LinearImage? cached = _full;
+    if (cached != null && _fullKey == key) {
+      return cached;
+    }
+    _releaseDerived(cached);
+    _full = null;
+    _fullKey = null;
+    final LinearImage decoded = decode();
+    _full = decoded;
+    _fullKey = key;
+    return decoded;
+  }
+
+  /// Drops the downscaled copy when it was derived from [source].
+  void _releaseDerived(LinearImage? source) {
+    if (source != null && identical(_resampledSource, source)) {
+      _resampled = null;
+      _resampledSource = null;
+    }
+  }
+
+  /// Releases every cached image.
+  void clear() {
+    _half = null;
+    _halfKey = null;
+    _full = null;
+    _fullKey = null;
+    _resampled = null;
+    _resampledSource = null;
+  }
 }
 
 /// Cache identity for the controls that require a new native development pass.
@@ -626,6 +718,7 @@ Map<Object?, Object?> serializeRawException(Object error) {
         RawDecodeException() => 'RawDecodeException',
         RawMemoryException() => 'RawMemoryException',
         RawStateException() => 'RawStateException',
+        RawCancelledException() => 'RawCancelledException',
         RawSettingsException() => 'RawSettingsException',
         RawBackendException() => 'RawBackendException',
         RawException() => 'RawException',
@@ -657,6 +750,7 @@ RawException deserializeRawException(Object? raw) {
     'RawMemoryException' => RawMemoryException(message: message, code: code),
     'RawStateException' => RawStateException(message: message, code: code),
     'RawSettingsException' => RawSettingsException(message: message),
+    'RawCancelledException' => RawCancelledException(message: message),
     _ => RawBackendException(message: message, code: code),
   };
 }

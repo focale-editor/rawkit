@@ -49,6 +49,15 @@ final class RawStateException extends RawException {
   const RawStateException({required super.message, super.code});
 }
 
+/// Indicates that a preview was superseded before it started rendering.
+///
+/// [RawDocument.renderPreview] only renders the newest waiting preview, so an
+/// interactive caller can ignore this exception.
+final class RawCancelledException extends RawException {
+  /// Creates a preview cancellation exception.
+  const RawCancelledException({required super.message});
+}
+
 /// Indicates that development or render settings are invalid.
 final class RawSettingsException extends RawException {
   /// Creates a RAW settings exception.
