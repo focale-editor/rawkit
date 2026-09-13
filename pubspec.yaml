@@ -1,6 +1,6 @@
 name: rawkit
 description: A reusable Dart SDK for importing and developing camera RAW images.
-version: 0.3.0
+version: 0.3.1
 website: https://github.com/focale-editor/rawkit
 repository: https://github.com/focale-editor/rawkit
 
