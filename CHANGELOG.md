@@ -1,5 +1,10 @@
 # 📰 RawKit changelog
 
+## v0.3.2
+Released on September 13, 2026.
+
+* **CHORE**: Added OpenMP support, LUT tone processing, and preview scheduling. ([#a28dcfc](https://github.com/focale-editor/rawkit/commit/a28dcfc))
+
 ## v0.3.1
 Released on September 13, 2026.
 
