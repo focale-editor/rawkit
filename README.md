@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="screenshots/overview.png" alt="RawKit package illustration" width="180">
+</p>
+
 # RawKit
 
 RawKit is a UI-independent Dart package for opening, inspecting and developing
@@ -235,3 +239,7 @@ RAWKIT_TEST_CORPUS=/path/to/raw-corpus dart test
 ```
 
 No third-party photographs are committed to this repository.
+
+---
+
+Built for **[Focale](https://focale-editor.app)**, an advanced local image editor. Discover what these packages make possible in a real creative workflow.
