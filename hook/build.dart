@@ -68,7 +68,8 @@ void main(List<String> arguments) async {
         // they cannot clash with another LibRaw loaded in the same process.
         flags: targetsWindows ? [if (windowsOpenMpRuntime != null) '/openmp'] : const ['-fvisibility=hidden', '-fvisibility-inlines-hidden'],
         language: Language.cpp,
-        std: 'c++11',
+        // MSVC accepts C++14 and newer standard switches, but not C++11.
+        std: targetsWindows ? 'c++14' : 'c++11',
       ).run(input: input, output: output);
       if (windowsOpenMpRuntime != null) {
         _bundleOpenMpRuntime(input, output, windowsOpenMpRuntime, 'vcomp140.dll');
