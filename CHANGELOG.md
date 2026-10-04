@@ -1,5 +1,11 @@
 # 📰 RawKit changelog
 
+## v0.3.3
+Released on October 5, 2026.
+
+* **FEAR**: Added iOS support. ([#d9b5b70](https://github.com/focale-editor/rawkit/commit/d9b5b70))
+* **FIX**: Fixed Windows C++ standard for building. ([#43ad3cd](https://github.com/focale-editor/rawkit/commit/43ad3cd))
+
 ## v0.3.2
 Released on September 13, 2026.
 
