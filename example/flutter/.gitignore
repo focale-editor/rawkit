@@ -1,0 +1,16 @@
+.dart_tool/
+.flutter-plugins-dependencies
+build/
+pubspec.lock
+# Generated with the flutter create command documented in README.md.
+ios/
+macos/
+test/
+web/
+android/
+linux/
+windows/
+*.iml
+.idea/
+.metadata
+README.generated.md

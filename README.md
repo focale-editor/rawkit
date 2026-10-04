@@ -35,15 +35,16 @@ image encoding, ICC profile embedding, or export formats such as JPEG/PNG.
 
 ## Platforms, assets and prerequisites
 
-RawKit targets Linux, macOS, Windows and the Web. Native source and hooks are
-structured for the host architectures supported by Dart's C toolchain. This
-revision is validated on Linux x64; macOS arm64/x64 and Windows x64 are yet to
-be tested. Dart 3.13 or later is required.
+RawKit targets iOS, Linux, macOS, Windows and the Web. Native source and hooks
+use the target architecture, SDK and deployment version selected by Dart's C
+toolchain. Linux x64 and macOS arm64 are validated. iOS validation is described
+below; macOS x64 and Windows x64 are yet to be tested. Dart 3.13 or later is
+required.
 
 ### Desktop
 
 Desktop builds also require a working platform C++ compiler.
-On its first desktop build, RawKit downloads the pinned LibRaw
+On its first native build, RawKit downloads the pinned LibRaw
 source into the project's `.dart_tool` hook cache, verifies its SHA-256, and
 then compiles it. Web consumers use the precompiled package asset and need no
 compiler. No manual setup is required on either path.
@@ -69,6 +70,26 @@ For a published dependency, ordinary use is simply:
 dart pub add rawkit
 dart run your_application.dart
 ```
+
+### iOS
+
+Flutter applications can use RawKit on iOS through the same native code asset
+and worker isolate as desktop applications. The existing build hook selects
+Xcode's device or simulator SDK and bundles LibRaw automatically; no CocoaPods
+plugin, system LibRaw installation or manual linker setup is needed. Building
+requires macOS, Xcode and its command-line tools.
+
+Use `RawDocument.openMemory` for bytes from a file picker or an application
+asset. `openFile` accepts a path that the application can read in its sandbox;
+RawKit does not request access to Photos or manage security-scoped file URLs.
+The offline `prepare_library desktop` command above also prepares the source
+used by iOS builds.
+
+The [Flutter example](example/flutter/README.md) displays a decoded DNG and
+reuses the existing runtime tests inside an iOS application. Its generated
+runner uses Flutter's minimum deployment target (iOS 15 with the tested SDK).
+Validation covers an arm64 iOS simulator and an unsigned arm64 device Release
+build. Running on a physical device requires ordinary Apple code signing.
 
 ### Web
 
@@ -222,8 +243,8 @@ When the desktop compiler supports OpenMP, LibRaw's demosaicing runs on all
 CPU cores. The build hook bundles the matching runtime (`libomp.so` or
 `libgomp.so.1` on Linux, `vcomp140.dll` on Windows) beside the RawKit library,
 so applications do not depend on it being installed. If the compiler or its
-runtime is unavailable, RawKit is built without parallelism. macOS builds and
-the Web module decode on a single thread. Only RawKit's C API is exported from
+runtime is unavailable, RawKit is built without parallelism. iOS and macOS
+builds and the Web module decode on a single thread. Only RawKit's C API is exported from
 the native library, so its LibRaw copy cannot clash with another LibRaw loaded
 by the application.
 

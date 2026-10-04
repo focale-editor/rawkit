@@ -1,0 +1,26 @@
+name: rawkit_flutter_example
+description: A Flutter example and native integration harness for RawKit.
+publish_to: none
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.13.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  rawkit:
+    path: ../..
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  integration_test:
+    sdk: flutter
+  lints: ^6.1.0
+  test: ^1.31.1
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/sample.dng
