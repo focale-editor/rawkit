@@ -1,5 +1,10 @@
 # 📰 RawKit changelog
 
+## v0.3.4
+Released on October 5, 2026.
+
+* **DOCS**: Updated the package overview screenshot. ([#aa26a48](https://github.com/focale-editor/rawkit/commit/aa26a48))
+
 ## v0.3.3
 Released on October 5, 2026.
 
