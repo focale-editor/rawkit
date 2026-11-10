@@ -6,6 +6,7 @@ import 'package:rawkit/src/develop/linear_image.dart';
 import 'package:rawkit/src/develop/render_geometry.dart';
 import 'package:rawkit/src/develop/tone_processor.dart';
 import 'package:rawkit/src/model/raw_backend_info.dart';
+import 'package:rawkit/src/model/raw_camera_profile.dart';
 import 'package:rawkit/src/model/raw_develop_settings.dart';
 import 'package:rawkit/src/model/raw_exception.dart';
 import 'package:rawkit/src/model/raw_image.dart';
@@ -555,6 +556,7 @@ final class _LinearImageCaches {
 final class _DecodeCacheKey {
   const _DecodeCacheKey({
     required this.whiteBalance,
+    required this.cameraProfile,
     required this.temperature,
     required this.tint,
     required this.demosaicQuality,
@@ -567,6 +569,7 @@ final class _DecodeCacheKey {
     RawColorSpace colorSpace,
   ) => _DecodeCacheKey(
     whiteBalance: settings.whiteBalance,
+    cameraProfile: settings.cameraProfile?.id,
     temperature: settings.whiteBalance == RawWhiteBalance.custom ? settings.temperature : 0,
     tint: settings.whiteBalance == RawWhiteBalance.custom ? settings.tint : 0,
     demosaicQuality: settings.demosaicQuality,
@@ -575,6 +578,7 @@ final class _DecodeCacheKey {
   );
 
   final RawWhiteBalance whiteBalance;
+  final String? cameraProfile;
   final double temperature;
   final double tint;
   final RawDemosaicQuality demosaicQuality;
@@ -584,6 +588,7 @@ final class _DecodeCacheKey {
   @override
   bool operator ==(Object other) =>
       other is _DecodeCacheKey &&
+      cameraProfile == other.cameraProfile &&
       whiteBalance == other.whiteBalance &&
       temperature == other.temperature &&
       tint == other.tint &&
@@ -593,6 +598,7 @@ final class _DecodeCacheKey {
 
   @override
   int get hashCode => Object.hash(
+    cameraProfile,
     whiteBalance,
     temperature,
     tint,
@@ -604,6 +610,7 @@ final class _DecodeCacheKey {
 
 /// Converts public settings into isolate-safe primitives.
 Map<Object?, Object?> serializeSettings(RawDevelopSettings settings) => {
+  'cameraProfile': settings.cameraProfile?.bytes,
   'whiteBalance': settings.whiteBalance.index,
   'temperature': settings.temperature,
   'tint': settings.tint,
@@ -623,6 +630,7 @@ Map<Object?, Object?> serializeSettings(RawDevelopSettings settings) => {
 RawDevelopSettings deserializeSettings(Object? raw) {
   final Map<Object?, Object?> values = _map(raw, 'settings');
   return RawDevelopSettings(
+    cameraProfile: values['cameraProfile'] == null ? null : RawCameraProfile.fromBytes(values['cameraProfile'] as Uint8List),
     whiteBalance: RawWhiteBalance.values[_integer(values['whiteBalance'], 'whiteBalance')],
     temperature: _double(values['temperature'], 'temperature'),
     tint: _double(values['tint'], 'tint'),

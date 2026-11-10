@@ -116,6 +116,8 @@ final class WebRawWorkerClient {
         id: _nextRequestId,
         operation: 'render',
         settings: _SettingsMessage(
+          cameraProfile: settings.cameraProfile?.bytes.buffer.toJS,
+          cameraProfileId: settings.cameraProfile?.id,
           whiteBalance: settings.whiteBalance.index,
           temperature: settings.temperature,
           tint: settings.tint,
@@ -356,6 +358,8 @@ extension type _RenderRequest._(JSObject _) implements _CommandRequest, JSObject
 @JS()
 extension type _SettingsMessage._(JSObject _) implements JSObject {
   external factory _SettingsMessage({
+    JSArrayBuffer? cameraProfile,
+    String? cameraProfileId,
     required int whiteBalance,
     required double temperature,
     required double tint,

@@ -3,6 +3,7 @@ library;
 
 export 'src/document/raw_document.dart';
 export 'src/model/raw_backend_info.dart';
+export 'src/model/raw_camera_profile.dart';
 export 'src/model/raw_develop_settings.dart';
 export 'src/model/raw_exception.dart';
 export 'src/model/raw_image.dart';

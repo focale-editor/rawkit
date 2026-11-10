@@ -65,7 +65,9 @@ enum rawkit_error_code {
   RAWKIT_ERROR_INVALID_ARGUMENT = -200001,
   RAWKIT_ERROR_OUT_OF_MEMORY = -200002,
   RAWKIT_ERROR_UNEXPECTED_OUTPUT = -200003,
-  RAWKIT_ERROR_CLOSED = -200004
+  RAWKIT_ERROR_CLOSED = -200004,
+  RAWKIT_ERROR_CAMERA_PROFILE = -200005,
+  RAWKIT_ERROR_CAMERA_PROFILE_MISMATCH = -200006
 };
 
 RAWKIT_API rawkit_handle *rawkit_open_file(const char *path, int32_t *error);
@@ -90,6 +92,10 @@ RAWKIT_API rawkit_handle *rawkit_open_owned_memory(uint8_t *data, size_t size,
 
 RAWKIT_API int32_t rawkit_get_metadata(rawkit_handle *handle,
                                        rawkit_metadata *metadata);
+
+/* Copies and validates an external DCP. A null, zero-size payload clears it. */
+RAWKIT_API int32_t rawkit_set_camera_profile(rawkit_handle *handle,
+                                              const uint8_t *data, size_t size);
 
 RAWKIT_API int32_t rawkit_decode(rawkit_handle *handle,
                                  const rawkit_decode_options *options,

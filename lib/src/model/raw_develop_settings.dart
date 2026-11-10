@@ -1,3 +1,4 @@
+import 'package:rawkit/src/model/raw_camera_profile.dart';
 import 'package:rawkit/src/model/raw_types.dart';
 
 /// Immutable controls for decoding and developing a RAW image.
@@ -9,6 +10,7 @@ final class RawDevelopSettings {
   /// scale. The temperature and tint values are used only when
   /// [whiteBalance] is [RawWhiteBalance.custom].
   const RawDevelopSettings({
+    this.cameraProfile,
     this.whiteBalance = RawWhiteBalance.camera,
     this.temperature = 6500,
     this.tint = 0,
@@ -35,6 +37,9 @@ final class RawDevelopSettings {
 
   /// Neutral defaults that preserve the camera exposure and tonal response.
   static const RawDevelopSettings defaults = RawDevelopSettings();
+
+  /// External DCP applied to camera-native samples before RGB conversion.
+  final RawCameraProfile? cameraProfile;
 
   /// Source used to derive the white balance.
   final RawWhiteBalance whiteBalance;
@@ -77,6 +82,8 @@ final class RawDevelopSettings {
 
   /// Returns a copy with the selected controls replaced.
   RawDevelopSettings copyWith({
+    RawCameraProfile? cameraProfile,
+    bool clearCameraProfile = false,
     RawWhiteBalance? whiteBalance,
     double? temperature,
     double? tint,
@@ -91,6 +98,7 @@ final class RawDevelopSettings {
     RawDemosaicQuality? demosaicQuality,
     RawHighlightRecovery? highlightRecovery,
   }) => RawDevelopSettings(
+    cameraProfile: clearCameraProfile ? null : cameraProfile ?? this.cameraProfile,
     whiteBalance: whiteBalance ?? this.whiteBalance,
     temperature: temperature ?? this.temperature,
     tint: tint ?? this.tint,
@@ -110,6 +118,7 @@ final class RawDevelopSettings {
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is RawDevelopSettings &&
+          cameraProfile == other.cameraProfile &&
           whiteBalance == other.whiteBalance &&
           temperature == other.temperature &&
           tint == other.tint &&
@@ -126,6 +135,7 @@ final class RawDevelopSettings {
 
   @override
   int get hashCode => Object.hash(
+    cameraProfile,
     whiteBalance,
     temperature,
     tint,

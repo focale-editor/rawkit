@@ -223,3 +223,7 @@ external ffi.Pointer<Utf8> rawkitBundledVersion();
 @ffi.Native<ffi.Int32 Function()>(symbol: 'rawkit_api_version')
 /// Returns the stable RawKit C shim version.
 external int rawkitApiVersion();
+
+/// Installs an external DCP before camera-native pixels are converted to RGB.
+@ffi.Native<ffi.Int32 Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Uint8>, ffi.Size)>(symbol: 'rawkit_set_camera_profile')
+external int rawkitSetCameraProfile(ffi.Pointer<ffi.Void> handle, ffi.Pointer<ffi.Uint8> data, int size);

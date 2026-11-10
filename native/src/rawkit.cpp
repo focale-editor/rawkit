@@ -5,6 +5,9 @@
  * their original copyright and dual LGPL-2.1/CDDL-1.0 license notices.
  */
 #include "rawkit.h"
+#include "camera_profile.h"
+#include <memory>
+#include <cctype>
 
 #include <libraw/libraw.h>
 
@@ -35,6 +38,7 @@ struct rawkit_handle {
   size_t memory_size;
   libraw_data_t *metadata_context;
   int64_t timestamp;
+  std::unique_ptr<rawkit_dcp::Profile> camera_profile;
 };
 
 /* Keeps LibRaw's processed image alive behind the public image view. */
@@ -532,6 +536,32 @@ RAWKIT_API int32_t rawkit_get_metadata(rawkit_handle *handle,
   return RAWKIT_SUCCESS;
 }
 
+/* Makes camera matching insensitive to case, punctuation and repeated spaces. */
+static std::string camera_identity(const std::string &value) {
+  std::string result;
+  for (unsigned char c : value) if (std::isalnum(c)) result += char(std::tolower(c));
+  return result;
+}
+
+RAWKIT_API int32_t rawkit_set_camera_profile(rawkit_handle *handle,
+                                             const uint8_t *data, size_t size) {
+  if (handle == nullptr) return RAWKIT_ERROR_INVALID_ARGUMENT;
+  if (data == nullptr && size == 0) { handle->camera_profile.reset(); return RAWKIT_SUCCESS; }
+  try {
+    std::unique_ptr<rawkit_dcp::Profile> profile(new rawkit_dcp::Profile(data, size));
+    const libraw_iparams_t &camera = handle->metadata_context->idata;
+    const std::string expected = camera_identity(profile->cameraModel);
+    if (!expected.empty() && expected != camera_identity(camera.model) &&
+        expected != camera_identity(std::string(camera.make) + camera.model) &&
+        expected != camera_identity(camera.normalized_model) &&
+        expected != camera_identity(std::string(camera.normalized_make) + camera.normalized_model)) return RAWKIT_ERROR_CAMERA_PROFILE_MISMATCH;
+    if (camera.colors != 3) return RAWKIT_ERROR_CAMERA_PROFILE;
+    handle->camera_profile = std::move(profile);
+    return RAWKIT_SUCCESS;
+  } catch (const std::bad_alloc &) { return RAWKIT_ERROR_OUT_OF_MEMORY; }
+    catch (...) { return RAWKIT_ERROR_CAMERA_PROFILE; }
+}
+
 RAWKIT_API int32_t rawkit_decode(rawkit_handle *handle,
                                  const rawkit_decode_options *options,
                                  rawkit_image **image) {
@@ -549,6 +579,18 @@ RAWKIT_API int32_t rawkit_decode(rawkit_handle *handle,
     result = open_source(context, handle);
     if (result == LIBRAW_SUCCESS) {
       result = configure_context(context, options);
+      if (result == RAWKIT_SUCCESS && handle->camera_profile) {
+        context->params.output_color = 0;
+        // Calibration signatures are not exposed by LibRaw. Non-identity DNG
+        // calibration therefore cannot be safely matched to an external DCP.
+        for (int illuminant = 0; illuminant < 2; ++illuminant) {
+          const libraw_dng_color_t &color = context->color.dng_color[illuminant];
+          if (color.parsedfields & LIBRAW_DNGFM_CALIBRATION) {
+            for (int row = 0; row < 3; ++row) for (int column = 0; column < 3; ++column)
+              if (std::abs(color.calibration[row][column] - (row == column ? 1.0f : 0.0f)) > 1e-6f) result = RAWKIT_ERROR_CAMERA_PROFILE;
+          }
+        }
+      }
     }
     if (result == RAWKIT_SUCCESS) {
       result = libraw_unpack(context);
@@ -565,6 +607,27 @@ RAWKIT_API int32_t rawkit_decode(rawkit_handle *handle,
                      ? RAWKIT_ERROR_UNEXPECTED_OUTPUT
                      : memory_error;
       } else {
+        if (handle->camera_profile) {
+          try {
+            rawkit_dcp::require(processed->colors == 3 && processed->bits == 16);
+            rawkit_dcp::Color neutral;
+            for (int channel = 0; channel < 3; ++channel) {
+              const double multiplier = context->color.pre_mul[channel];
+              rawkit_dcp::require(std::isfinite(multiplier) && multiplier > 0);
+              const double analog = context->color.dng_levels.analogbalance[channel];
+              neutral[channel] = 1.0 / multiplier / (std::isfinite(analog) && analog > 0 ? analog : 1.0);
+            }
+            handle->camera_profile->apply(reinterpret_cast<uint16_t *>(processed->data), size_t(processed->width) * processed->height, neutral, options->color_space);
+          } catch (const std::bad_alloc &) {
+            libraw_dcraw_clear_mem(processed);
+            libraw_close(context);
+            return RAWKIT_ERROR_OUT_OF_MEMORY;
+          } catch (...) {
+            libraw_dcraw_clear_mem(processed);
+            libraw_close(context);
+            return RAWKIT_ERROR_CAMERA_PROFILE;
+          }
+        }
         result = wrap_processed_image(processed, image);
         if (result != RAWKIT_SUCCESS) {
           libraw_dcraw_clear_mem(processed);
@@ -601,6 +664,10 @@ RAWKIT_API const char *rawkit_error_message(int32_t error) {
   switch (error) {
   case RAWKIT_SUCCESS:
     return "Success";
+  case RAWKIT_ERROR_CAMERA_PROFILE:
+    return "Invalid or unsupported DCP camera profile or camera calibration";
+  case RAWKIT_ERROR_CAMERA_PROFILE_MISMATCH:
+    return "The DCP profile was created for a different camera";
   case RAWKIT_ERROR_INVALID_ARGUMENT:
     return "Invalid RawKit argument";
   case RAWKIT_ERROR_OUT_OF_MEMORY:
@@ -622,7 +689,7 @@ RAWKIT_API const char *rawkit_bundled_version(void) {
   return LIBRAW_VERSION_STR;
 }
 
-RAWKIT_API int32_t rawkit_api_version(void) { return 2; }
+RAWKIT_API int32_t rawkit_api_version(void) { return 3; }
 
 #if defined(__EMSCRIPTEN__)
 RAWKIT_API const char *rawkit_web_metadata_string(rawkit_handle *handle,

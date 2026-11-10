@@ -78,7 +78,7 @@ Future<void> buildWebLibrary({
     '-sMAXIMUM_MEMORY=4294967296',
     '-sASSERTIONS=0',
     '-sEXPORTED_RUNTIME_METHODS=["UTF8ToString","HEAPU8","HEAP32","HEAPU32"]',
-    '-sEXPORTED_FUNCTIONS=["_malloc","_free","_rawkit_open_memory","_rawkit_open_owned_memory","_rawkit_memory_allocate","_rawkit_memory_free","_rawkit_close","_rawkit_image_free","_rawkit_error_message","_rawkit_runtime_version","_rawkit_bundled_version","_rawkit_api_version","_rawkit_web_metadata_string","_rawkit_web_metadata_number","_rawkit_web_decode","_rawkit_web_image_width","_rawkit_web_image_height","_rawkit_web_image_channels","_rawkit_web_image_bits_per_sample","_rawkit_web_image_data"]',
+    '-sEXPORTED_FUNCTIONS=["_malloc","_free","_rawkit_open_memory","_rawkit_open_owned_memory","_rawkit_memory_allocate","_rawkit_memory_free","_rawkit_close","_rawkit_set_camera_profile","_rawkit_image_free","_rawkit_error_message","_rawkit_runtime_version","_rawkit_bundled_version","_rawkit_api_version","_rawkit_web_metadata_string","_rawkit_web_metadata_number","_rawkit_web_decode","_rawkit_web_image_width","_rawkit_web_image_height","_rawkit_web_image_channels","_rawkit_web_image_bits_per_sample","_rawkit_web_image_data"]',
     '-o',
     outputPath,
   ];

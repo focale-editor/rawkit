@@ -100,6 +100,21 @@ final class NativeRawDocument {
     required bool halfSize,
   }) {
     _ensureOpen();
+    final Uint8List? profile = settings.cameraProfile?.bytes;
+    final ffi.Pointer<ffi.Uint8> profileBytes = profile == null ? ffi.nullptr : calloc<ffi.Uint8>(profile.length);
+    try {
+      if (profile != null) {
+        profileBytes.asTypedList(profile.length).setAll(0, profile);
+      }
+      final int status = rawkitSetCameraProfile(_handle, profileBytes, profile?.length ?? 0);
+      if (status != 0) {
+        throwNativeError(status, operation: 'apply DCP camera profile');
+      }
+    } finally {
+      if (profileBytes != ffi.nullptr) {
+        calloc.free(profileBytes);
+      }
+    }
     final ffi.Pointer<NativeRawDecodeOptions> options = calloc<NativeRawDecodeOptions>();
     final ffi.Pointer<ffi.Pointer<NativeRawImage>> output = calloc<ffi.Pointer<NativeRawImage>>();
     try {

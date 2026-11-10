@@ -173,6 +173,21 @@ function decode(settings, colorSpace, halfSize) {
   if (outputPointer === 0) {
     throw rawError('memory', 'RawKit could not allocate WebAssembly output memory.', -200002);
   }
+  const profile = settings.cameraProfile == null ? null : new Uint8Array(settings.cameraProfile);
+  const profilePointer = profile === null ? 0 : module._malloc(profile.length) >>> 0;
+  try {
+    if (profile !== null) {
+      if (profilePointer === 0) throw rawError('memory', 'Could not allocate DCP profile memory.', -200002);
+      module.HEAPU8.set(profile, profilePointer);
+    }
+    const profileResult = module._rawkit_set_camera_profile(handle, profilePointer, profile?.length ?? 0);
+    if (profileResult !== 0) throw nativeError(profileResult, 'apply DCP camera profile');
+  } catch (error) {
+    module._free(outputPointer);
+    throw error;
+  } finally {
+    if (profilePointer !== 0) module._free(profilePointer);
+  }
   let image = 0;
   try {
     module.HEAPU32[outputPointer >>> 2] = 0;
@@ -555,7 +570,7 @@ function readString(pointer) {
 // matter for custom white balance, matching the desktop worker.
 function decodeKey(settings, colorSpace) {
   const custom = settings.whiteBalance === 2;
-  return [
+  return [settings.cameraProfileId ?? null,
     settings.whiteBalance,
     custom ? settings.temperature : 0,
     custom ? settings.tint : 0,
