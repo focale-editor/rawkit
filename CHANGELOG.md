@@ -1,5 +1,10 @@
 # 📰 RawKit changelog
 
+## v0.3.5
+Released on November 10, 2026.
+
+* **FEAT**: Added bounded external DCP camera profiles before working-RGB conversion. ([#bb9c25d](https://github.com/focale-editor/rawkit/commit/bb9c25d))
+
 ## v0.3.4
 Released on October 5, 2026.
 
